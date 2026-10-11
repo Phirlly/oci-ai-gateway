@@ -2,19 +2,39 @@
 
 import asyncio
 import json
+import os
 import shutil
 import tempfile
 import unittest
+from contextlib import ExitStack
 from pathlib import Path
+from unittest.mock import patch
 
 import httpx
 import litellm
 from litellm.proxy import proxy_server
+from litellm.integrations.custom_logger import CustomLogger
 
 from payload_fixture import COMPARTMENT, MODEL, ROUTE
 from runtime.gateway_http import Response
+from runtime import oci_gateway_config
+from runtime.oci_signing_client import SocketSigner
+from native_proxy_upstream import NativeUpstream
 
 MASTER = "sk-synthetic-native-probe-only"
+EXTERNAL = "external-anthropic"
+
+
+class OfflineTransport(CustomLogger):
+    """Replace only outbound HTTP after the production policy has run."""
+
+    def __init__(self, upstream):
+        super().__init__()
+        self.upstream = upstream
+
+    async def async_pre_call_deployment_hook(self, kwargs, call_type):
+        kwargs["client"] = self.upstream.handler
+        return kwargs
 
 
 class NativeProxyCase(unittest.IsolatedAsyncioTestCase):
@@ -29,7 +49,8 @@ class NativeProxyCase(unittest.IsolatedAsyncioTestCase):
         self.saved_proxy = {name: getattr(proxy_server, name) for name in (
             "llm_router", "llm_model_list", "general_settings", "master_key",
         )}
-        self.client = self.probe = None
+        self.client = self.probe = self.upstream = None
+        self.context = ExitStack()
         self.directory = tempfile.TemporaryDirectory(prefix="native-proxy-")
         self.addAsyncCleanup(self.close_probe)
         for name in self.saved_callbacks:
@@ -38,8 +59,9 @@ class NativeProxyCase(unittest.IsolatedAsyncioTestCase):
         proxy_server.llm_router = None
         proxy_server.user_api_key_cache.flush_cache()
         path = Path(self.directory.name)
-        shutil.copyfile(Path(__file__).with_name("native_proxy_callback.py"),
-                        path / "native_proxy_callback.py")
+        (path / "runtime").mkdir()
+        shutil.copyfile(Path(oci_gateway_config.__file__).with_name("oci_gateway_loader.py"),
+                        path / "runtime" / "oci_gateway_loader.py")
         config = {
             "model_list": [{
                 "model_name": ROUTE, "model_info": {"id": ROUTE},
@@ -47,8 +69,10 @@ class NativeProxyCase(unittest.IsolatedAsyncioTestCase):
                                   "oci_compartment_id": COMPARTMENT,
                                   "additional_drop_params": ["stream_options"],
                                   "max_tokens": 32, "num_retries": 0},
-            }],
-            "litellm_settings": {"callbacks": ["native_proxy_callback.INSTANCE"],
+            }, {"model_name": EXTERNAL, "model_info": {"id": EXTERNAL},
+                "litellm_params": {"model": "anthropic/claude-sonnet-4-6",
+                                   "api_key": "os.environ/ANTHROPIC_API_KEY"}}],
+            "litellm_settings": {"callbacks": ["runtime.oci_gateway_loader.INSTANCE"],
                                  "drop_params": False, "num_retries": 0},
             "router_settings": {"num_retries": 0, "allowed_fails": 1000},
             "general_settings": {"master_key": MASTER,
@@ -56,10 +80,16 @@ class NativeProxyCase(unittest.IsolatedAsyncioTestCase):
         }
         config_path = path / "config.yaml"
         config_path.write_text(json.dumps(config))
+        config_path.chmod(0o600)
+        self.context.enter_context(patch.object(oci_gateway_config, "GATEWAY_CONFIG", config_path))
+        self.context.enter_context(patch.dict(os.environ, {"ANTHROPIC_API_KEY": "synthetic-external-key"}))
         await proxy_server.initialize(config=str(config_path), drop_params=False, request_timeout=3)
-        matches = [item for item in litellm.callbacks if type(item).__name__ == "NativeProbe"]
+        matches = [item for item in litellm.callbacks if type(item).__name__ == "NativeGateway"]
         self.assertEqual(len(matches), 1, "config did not load exactly one module instance")
         self.probe = matches[0]
+        self.assertIsInstance(self.probe.oci_signer, SocketSigner)
+        self.upstream = NativeUpstream()
+        litellm.callbacks.append(OfflineTransport(self.upstream))
         self.assertIs(litellm.drop_params, False)
         self.client = httpx.AsyncClient(transport=httpx.ASGITransport(app=proxy_server.app),
                                        base_url="http://proxy.test", timeout=5)
@@ -67,8 +97,8 @@ class NativeProxyCase(unittest.IsolatedAsyncioTestCase):
     async def close_probe(self):
         if self.client is not None:
             await self.client.aclose()
-        if self.probe is not None:
-            await self.probe.upstream.close()
+        if self.upstream is not None:
+            await self.upstream.close()
         if proxy_server.llm_router is not None:
             proxy_server.llm_router.reset()
         for name, value in self.saved_callbacks.items():
@@ -77,6 +107,7 @@ class NativeProxyCase(unittest.IsolatedAsyncioTestCase):
             setattr(proxy_server, name, value)
         litellm.drop_params = self.saved_drop
         self.directory.cleanup()
+        self.context.close()
 
     async def request(self, extra=None, *, key=MASTER):
         body = {"model": ROUTE, "messages": [{"role": "user", "content": "Synthetic request"}],

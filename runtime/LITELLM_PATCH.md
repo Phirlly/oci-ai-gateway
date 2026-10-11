@@ -12,6 +12,12 @@ replacements. It is **not activated in cloud deployments yet**.
 - Verification: `python3.12 -m tests.contracts.native_oci`; see
   [local prerequisites](LOCAL_TESTING.md).
 
-The offline proxy fixture supplies test-only routing and transport. These checks
-do not establish deployed callback policy, OCI IAM, real model access or readiness.
+The production callback reads the existing `/app/config.json` through
+`runtime.oci_gateway_loader.INSTANCE`. It permits the two configured aliases,
+rejects caller routing/credential overrides, and attaches `SocketSigner` only to
+the configured native OCI route. Anthropic retains its adapter and usage reporting.
+
+The offline proxy loads that production callback; only HTTP transport and the
+host signing responder are synthetic. Cloud packaging, startup and IAM integration
+remain pending. These checks do not establish real model access or readiness.
 An image update requires reviewing the correction and updating verified hashes.

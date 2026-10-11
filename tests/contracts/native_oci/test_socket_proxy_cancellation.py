@@ -8,6 +8,8 @@ from socket_signer_fixture import SocketProxyCase
 
 
 class SocketProxyCancellation(SocketProxyCase):
+    observe_signing_completion = True
+
     async def test_delayed_signing_keeps_proxy_responsive(self):
         self.socket.release.clear()
         task = asyncio.create_task(self.request())
@@ -42,7 +44,7 @@ class SocketProxyCancellation(SocketProxyCase):
                 gc.collect()
                 await asyncio.sleep(0.1)
                 self.assertEqual(len(self.socket.requests), 1)
-                self.assertEqual(self.probe.upstream.requests, [])
+                self.assertEqual(self.upstream.requests, [])
                 self.assertEqual([str(item.message) for item in observed
                                   if "was never awaited" in str(item.message)], [])
                 self.assertEqual(task_errors, [])

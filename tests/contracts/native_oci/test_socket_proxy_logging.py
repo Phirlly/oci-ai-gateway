@@ -32,10 +32,10 @@ class SocketProxyLogging(SocketProxyCase):
         for streaming, mode, expected in ((False, "complete", 200), (True, "complete", 200),
                                            (False, "rate_limit", 429)):
             with self.subTest(streaming=streaming, mode=mode):
-                self.probe.upstream.mode = mode
+                self.upstream.mode = mode
                 response = await self.request({"stream": streaming})
                 self.assertEqual(response.status_code, expected, response.text[:200])
-                self.assertIn(SIGNATURE_MARKER, self.probe.upstream.requests[-1].headers["authorization"])
+                self.assertIn(SIGNATURE_MARKER, self.upstream.requests[-1].headers["authorization"])
                 self.assertNotIn(SIGNATURE_MARKER, self.capture.getvalue())
         self.assertIn("429", self.capture.getvalue())
 
@@ -47,5 +47,5 @@ class SocketProxyLogging(SocketProxyCase):
                 self.assertNotEqual(response.status_code, 200)
                 self.assertIn("Native signing unavailable", response.text)
                 self.assertNotIn(PRIVATE_MARKER, response.text + self.capture.getvalue())
-                self.assertEqual(self.probe.upstream.requests, [])
+                self.assertEqual(self.upstream.requests, [])
         self.assertIn("Native signing unavailable", self.capture.getvalue())

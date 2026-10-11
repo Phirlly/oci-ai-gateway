@@ -60,9 +60,10 @@ def streamed_completion(response, model):
                 continue
             choice = choices[0]
             if stopped:
-                # Pinned LiteLLM retains an empty choice in its final usage chunk.
+                # Pinned LiteLLM can emit an empty tail with or without usage.
                 if (choice.get('index') == 0 and choice.get('delta') == {}
-                        and choice.get('finish_reason') is None and _usage(value.get('usage')) is not None):
+                        and choice.get('finish_reason') is None
+                        and (value.get('usage') is None or _usage(value['usage']) is not None)):
                     continue
                 raise ValueError
             if choice.get("index", 0) != 0 or choice.get("finish_reason") not in (None, "stop"):

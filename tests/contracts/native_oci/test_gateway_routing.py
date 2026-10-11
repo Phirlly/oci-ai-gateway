@@ -10,6 +10,14 @@ from socket_signer_fixture import SIGNATURE_MARKER, SocketProxyCase
 
 
 class GatewayRouting(SocketProxyCase):
+    async def test_native_empty_terminal_event_preserves_complete_stream_and_unknown_usage(self):
+        self.upstream.mode = "empty_tail"
+        response = await self.request({"stream": True, "stream_options": {"include_usage": True}})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(streamed_completion(self.result(response), ROUTE), ("BILLING", None))
+        self.assertEqual(len(self.socket.requests), 1)
+        self.assertEqual(len(self.upstream.requests), 1)
+
     async def test_native_completion_and_compare_stream_use_exact_signed_bytes(self):
         for streaming in (False, True):
             with self.subTest(streaming=streaming):

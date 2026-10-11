@@ -38,6 +38,8 @@ class NativeUpstream:
         reason = "ERROR" if self.mode == "error" else "COMPLETE"
         if data["chatRequest"].get("isStream"):
             fragments = complete(reason)
+            if self.mode == "empty_tail":
+                fragments.insert(-1, b'data: {}\n\n')
             if self.mode == "premature":
                 fragments = fragments[:1]
             body = AsyncBody(fragments)

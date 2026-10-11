@@ -61,13 +61,20 @@ class ResultTests(unittest.TestCase):
                 body = ''.join('data: ' + json.dumps(chunk) + '\n\n' for chunk in chunks) + 'data: [DONE]\n\n'
                 self.assertEqual(streamed_completion(response(body), 'oci-managed'), ('BILLING', usage))
 
+    def test_complete_stream_accepts_empty_tail_without_inventing_usage(self):
+        for metadata in ({}, {'usage': None}):
+            with self.subTest(metadata=metadata):
+                chunks = [{'choices': [{'index': 0, 'delta': {'content': 'BILLING'}, 'finish_reason': 'stop'}]},
+                          {'choices': [{'index': 0, 'delta': {}, 'finish_reason': None}], **metadata}]
+                body = ''.join('data: ' + json.dumps(chunk) + '\n\n' for chunk in chunks) + 'data: [DONE]\n\n'
+                self.assertEqual(streamed_completion(response(body), 'oci-managed'), ('BILLING', None))
+
     def test_usage_tail_cannot_hide_content_second_finish_or_invalid_usage(self):
         usage = {'prompt_tokens': 20, 'completion_tokens': 3, 'total_tokens': 23}
         tails = [({'index': 0, 'delta': {'content': 'EXTRA'}}, usage),
                  ({'index': 0, 'delta': {}, 'finish_reason': 'stop'}, usage),
                  ({'index': 1, 'delta': {}}, usage), ({'delta': {}}, usage),
-                 ({'index': 0, 'delta': {}}, {'total_tokens': 'invalid'}),
-                 ({'index': 0, 'delta': {}}, None)]
+                 ({'index': 0, 'delta': {}}, {'total_tokens': 'invalid'})]
         for choice, tail_usage in tails:
             with self.subTest(choice=choice, usage=tail_usage), self.assertRaises(GatewayError):
                 chunks = [{'choices': [{'index': 0, 'delta': {'content': 'BILLING'}, 'finish_reason': 'stop'}]},

@@ -1,0 +1,17 @@
+[Unit]
+Description=Private OCI AI Gateway signing socket
+
+[Socket]
+ListenStream=/run/oci-ai-gateway-signing/sign.sock
+Accept=no
+SocketUser=root
+SocketGroup=root
+SocketMode=0600
+DirectoryMode=0700
+Backlog=3
+FileDescriptorName=signing
+FlushPending=yes
+RemoveOnStop=yes
+
+[Install]
+WantedBy=sockets.target

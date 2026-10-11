@@ -28,6 +28,11 @@ jobs:
           python -m unittest discover -s tests/contracts/http -t . -v
           python -m compileall -q deployment runtime demo tests
           git diff --check
+      - name: Offline OCI signing and refresh contracts
+        run: |
+          python -m venv .cache/oci-signing-venv
+          .cache/oci-signing-venv/bin/python -m pip install --disable-pip-version-check --no-input oci==2.187.0
+          .cache/oci-signing-venv/bin/python -m tests.contracts.oci_signing
       - name: Validate workflow syntax
         run: |
           mkdir -p .cache/actionlint

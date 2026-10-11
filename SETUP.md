@@ -37,16 +37,27 @@ support HTTPS and certificate issuance; gateway/database ports stay private.
    gh variable set DEPLOYMENT_CONFIG --env gateway < deployment.tfvars.json
    ```
 
-4. Add these **environment secrets**:
+4. Add two more **environment variables**:
 
    | Name | Value |
    |---|---|
    | `OCI_USER_OCID` | OCI signing user's OCID |
    | `OCI_FINGERPRINT` | Registered signing key fingerprint |
+
+   Keep tenancy, compartment, regions, models and resource settings only in
+   `DEPLOYMENT_CONFIG`. Do not duplicate them as individual GitHub variables.
+
+5. Add these three required **environment secrets**:
+
+   | Name | Value |
+   |---|---|
    | `OCI_PRIVATE_KEY` | Matching PEM private key: unencrypted PKCS8/RSA or encrypted PKCS8 |
-   | `OCI_PRIVATE_KEY_PASSPHRASE` | Passphrase for encrypted PKCS8, if used |
    | `ANTHROPIC_API_KEY` | Anthropic API key |
    | `DEMO_PASSWORD` | Presenter password: 12–256 characters including uppercase, lowercase, number and symbol |
+
+   Only for an encrypted PKCS8 private key, add `OCI_PRIVATE_KEY_PASSPHRASE` as
+   an additional secret. Leave it unset for an unencrypted key. `OPENAI_API_KEY`
+   is not used by this OCI + Anthropic configuration.
 
 `DEMO_PASSWORD` is the browser login password. Never place passwords/API keys in
 the settings JSON. GitHub's built-in token records recovery history; no personal
@@ -54,6 +65,11 @@ GitHub token is required by the workflow. Local OCI profile names, including
 `DEFAULT`, are not deployment settings and are not used on GitHub runners.
 Configure only **gateway**. The workflow maintains **gateway-submissions**
 automatically for nonsecret recovery records; it needs no secrets or setup.
+
+Existing setups with `OCI_USER_OCID` and `OCI_FINGERPRINT` stored as secrets:
+create the matching variables before adopting this workflow revision. Run
+**Status** on the updated branch, then remove the two old secrets after it passes.
+Start new runs from the updated branch; older workflow revisions still use secrets.
 
 ## Run the demo
 

@@ -36,7 +36,7 @@ def _signing_fields(environment, tenancy):
             raise ValueError
         return user, fingerprint, key, password
     except (KeyError, TypeError, ValueError):
-        raise DeliveryError("OCI signing secrets are missing or malformed; check environment secret names.") from None
+        raise DeliveryError("OCI signing configuration is missing or malformed; check environment variable and secret names.") from None
 
 
 @contextmanager

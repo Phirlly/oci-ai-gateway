@@ -89,7 +89,6 @@ class SystemdSocket:
                 raise RuntimeError("Owned signing contract container remains")
         if self.units:
             self.control("stop", self.name + ".socket", self.name + ".service")
-            self.control("reset-failed", self.name + ".socket", self.name + ".service")
             run_command(["sudo", "-n", "rm", "--", *self.units])
             self.control("daemon-reload")
             exists = subprocess.run(["sudo", "-n", "test", "-d", self.socket_dir], timeout=10).returncode

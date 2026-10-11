@@ -10,6 +10,24 @@ from tests.contracts.signing_systemd.fixture import SystemdSocket
 
 
 class SystemdContractCleanupTests(unittest.TestCase):
+    def test_stopped_unloaded_units_do_not_prevent_owned_file_cleanup(self):
+        owner = SystemdSocket()
+        with tempfile.TemporaryDirectory() as directory:
+            owner.directory = Path(directory) / "inputs"
+            owner.directory.mkdir()
+            owner.units = ["/run/systemd/system/" + owner.name + "." + suffix for suffix in ("socket", "service")]
+            def control(*args):
+                if args[0] == "reset-failed":
+                    raise RuntimeError("Stopped unit no longer loaded")
+                return ""
+            with patch.object(owner, "control", side_effect=control), \
+                    patch("tests.contracts.signing_systemd.fixture.run_command") as run, \
+                    patch("tests.contracts.signing_systemd.fixture.subprocess.run",
+                          return_value=Mock(returncode=1)):
+                owner.cleanup()
+            run.assert_called_once_with(["sudo", "-n", "rm", "--", *owner.units])
+            self.assertFalse(owner.directory.exists())
+
     def test_failed_container_cleanup_reports_owned_paths_and_preserves_inputs(self):
         owner = SystemdSocket()
         with tempfile.TemporaryDirectory() as directory:

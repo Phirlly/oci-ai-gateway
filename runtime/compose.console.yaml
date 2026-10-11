@@ -1,0 +1,9 @@
+# The public mount contains only sanitized deployment status, never private state.
+services:
+  edge:
+    volumes:
+      - type: bind
+        source: ${GATEWAY_STATUS_DIR:-/var/lib/oci-ai-gateway-status}
+        target: /srv/gateway-status
+        read_only: true
+        bind: {create_host_path: false}

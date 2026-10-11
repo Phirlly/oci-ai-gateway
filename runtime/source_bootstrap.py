@@ -40,7 +40,7 @@ def prepare_sources(manifest, root=Path("/")):
     install_assets(json.dumps(values, separators=(",", ":")).encode(), root)
 
 
-def main():
+def main(*, console=False):
     try:
         if os.geteuid() != 0:
             raise ValueError("Runtime source bootstrap requires root")
@@ -53,7 +53,10 @@ def main():
         prepare_sources(manifest)
         from .host_commands import _run
         _run(["/usr/bin/systemctl", "daemon-reload"], "Downloaded service unit activation", 30)
-        from .bootstrap import main as bootstrap
+        if console:
+            from .console_bootstrap import main as bootstrap
+        else:
+            from .bootstrap import main as bootstrap
         return bootstrap()
     except (OSError, ValueError, TypeError, RecursionError):
         print("Runtime sources could not be verified; bootstrap timer will retry", file=sys.stderr)
@@ -61,4 +64,7 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    import argparse
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--console", action="store_true")
+    sys.exit(main(console=parser.parse_args().console))

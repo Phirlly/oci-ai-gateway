@@ -41,6 +41,7 @@ coverage.out
 /build/
 /out/
 /runtime/source.json
+/orm/source.json
 /target/
 
 # Logs and runtime state.

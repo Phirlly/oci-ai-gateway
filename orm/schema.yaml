@@ -1,0 +1,72 @@
+title: OCI AI Gateway
+description: Compare an OCI-managed model and Anthropic through LiteLLM on OCI.
+schemaVersion: 1.1.0
+version: "1.0"
+locale: en
+instructions: Apply, save your Anthropic key in the external secret, then open Deployment status. Read the generated presenter password in Secret Management. Apply success does not mean Ready.
+variableGroups:
+  - title: Deployment
+    variables: ["${compartment_ocid}", "${deployment_id}", "${availability_domain}", "${image_ocid}", "${presenter_email}"]
+  - title: Models and capacity
+    variables: ["${oci_model_id}", "${inference_region}", "${external_model_id}", "${instance_shape}", "${instance_ocpus}", "${instance_memory_gbs}"]
+  - title: Verification
+    variables: ["${verification_run}"]
+variables:
+  tenancy_ocid: {type: string, visible: false}
+  region: {type: string, visible: false}
+  compartment_ocid:
+    type: oci:identity:compartment:id
+    title: Deployment compartment
+    required: true
+  deployment_id:
+    type: string
+    title: Unique deployment name
+    pattern: "^[a-z][a-z0-9-]{2,39}$"
+    required: true
+  availability_domain:
+    type: oci:identity:availabilitydomain:name
+    title: Availability domain
+    required: true
+    dependsOn: {compartmentId: "${compartment_ocid}"}
+  image_ocid:
+    type: oci:core:image:id
+    title: Ubuntu 24.04 AMD image
+    description: Choose a Canonical-Ubuntu-24.04 image without an aarch64 suffix. Keep this selection on later Applies.
+    required: true
+    dependsOn:
+      compartmentId: "${compartment_ocid}"
+      shape: "${instance_shape}"
+      operatingSystem: Canonical Ubuntu
+      operatingSystemVersion: "24.04"
+  presenter_email: {type: string, title: Presenter username, required: true}
+  oci_model_id:
+    type: string
+    title: OCI Chat model
+    description: Must be available to your tenancy in the inference region; availability differs by region.
+    required: true
+  inference_region:
+    type: string
+    title: Inference region (optional)
+    description: Leave blank to use the hosting region. A different region must already be subscribed.
+  external_model_id: {type: string, title: Anthropic model, required: true}
+  instance_shape:
+    type: enum
+    title: VM shape
+    enum: [VM.Standard.E4.Flex, VM.Standard.E5.Flex]
+    required: true
+  instance_ocpus: {type: number, title: OCPUs, minimum: 1, maximum: 16, required: true}
+  instance_memory_gbs: {type: number, title: Memory (GB), minimum: 8, maximum: 256, required: true}
+  verification_run:
+    type: number
+    title: Verification run
+    description: Start at 1. Increase and Apply to retry samples or activate a corrected key. Never decrease. Maximum 20 runs per deployment.
+    minimum: 1
+    maximum: 20
+    required: true
+outputs:
+  external_key_secret_url: {type: link, title: External credentials, displayText: Save Anthropic key}
+  presenter_password_secret_url: {type: link, title: Presenter credentials, displayText: View presenter password}
+  status_url: {type: link, title: Deployment status, displayText: Check last verification}
+  compare_url: {type: link, title: LiteLLM Compare, displayText: Open Compare}
+  presenter_username: {type: copyableString, title: Presenter username}
+primaryOutputButton: ${status_url}

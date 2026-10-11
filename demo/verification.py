@@ -40,11 +40,11 @@ def presenter_client(public, presenter, password):
     try:
         value = response.json()
         rows = value["data"]
-        if (response.status != 200 or not isinstance(rows, list) or len(rows) != 2
+        if (response.status != 200 or not isinstance(rows, list) or len(rows) != len(presenter.models)
                 or {row["model_group"] for row in rows} != set(presenter.models)):
             raise ValueError
     except (ValueError, KeyError, TypeError):
-        raise GatewayError("Presenter model access does not match the two configured routes") from None
+        raise GatewayError("Presenter model access does not match the configured routes") from None
     if session.request("GET", "/user/list").status != 403:
         raise GatewayError("Presenter administrative access restriction could not be verified")
     return session

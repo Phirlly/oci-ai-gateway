@@ -21,15 +21,18 @@ SOURCE_EXCLUSIONS = {"runtime/compose.cloud.yaml", "runtime/systemd/docker-guard
 
 
 class NativePackage(FoundationPackage):
+    files = NATIVE_FILES
+    source_exclusions = SOURCE_EXCLUSIONS
+
     @classmethod
     def build(cls, directory, *, repository, commit):
         def source_manifest(contents):
             values = {"schema_version": 1, "repository": repository, "commit": commit,
                       "files": {name: sha256(data).hexdigest() for name, data in contents.items()
-                                if name.startswith("runtime/") and name not in SOURCE_EXCLUSIONS}}
+                                if name.startswith("runtime/") and name not in cls.source_exclusions}}
             validate_manifest(values)
             return {SOURCE_PATH: json.dumps(values, sort_keys=True, separators=(",", ":")).encode()}
-        return cls._build(directory, NATIVE_FILES, generated=source_manifest)
+        return cls._build(directory, cls.files, generated=source_manifest)
 
     def verify_public_source(self):
         try:
@@ -40,9 +43,9 @@ class NativePackage(FoundationPackage):
             raise DeliveryError("Public runtime commit does not match this package; push the exact source before deploying.") from None
 
 
-def prepare_local_source(root, repository, commit):
+def prepare_local_source(root, repository, commit, *, package_type=NativePackage):
     """Offline preparation of the ignored manifest used by local Terraform checks."""
-    package = NativePackage.build(root, repository=repository, commit=commit)
+    package = package_type.build(root, repository=repository, commit=commit)
     with zipfile.ZipFile(io.BytesIO(package.content)) as archive:
         content = archive.read(SOURCE_PATH)
     destination = Path(root) / SOURCE_PATH
@@ -64,5 +67,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repository", default=os.environ.get("GITHUB_REPOSITORY"))
     parser.add_argument("--commit", default=os.environ.get("GITHUB_SHA"))
+    parser.add_argument("--optional-providers", action="store_true")
     options = parser.parse_args()
-    prepare_local_source(Path(__file__).resolve().parents[1], options.repository, options.commit)
+    from .optional_package import OptionalPackage
+    prepare_local_source(Path(__file__).resolve().parents[1], options.repository, options.commit,
+                         package_type=OptionalPackage if options.optional_providers else NativePackage)

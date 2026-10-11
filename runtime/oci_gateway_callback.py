@@ -1,4 +1,4 @@
-"""Restrict the two gateway routes and attach the private native OCI signer."""
+"""Restrict configured routes and attach a signer only to enabled native OCI."""
 
 from fastapi import HTTPException
 from litellm.integrations.custom_logger import CustomLogger
@@ -28,7 +28,7 @@ class NativeGateway(CustomLogger):
     def __init__(self, routes: GatewayRoutes):
         super().__init__()
         self.routes = routes
-        self.oci_signer = SocketSigner(routes.scope)
+        self.oci_signer = SocketSigner(routes.scope) if routes.scope is not None else None
 
     async def async_pre_call_hook(self, user_api_key_dict, cache, data, call_type):
         snapshot = data.get("proxy_server_request")
@@ -40,7 +40,7 @@ class NativeGateway(CustomLogger):
         fields = set(data) | set(snapshot["body"]) | set(credentials)
         # CLI request_timeout is injected after this snapshot; reject caller input only.
         if ("request_timeout" in snapshot["body"]
-                or data.get("model") not in MODEL_ALIASES or fields & FORBIDDEN
+                or data.get("model") not in self.routes.aliases or fields & FORBIDDEN
                 or any(not isinstance(k, str) or k.startswith("oci_") for k in fields)):
             reject()
         if data["model"] == MODEL_ALIASES[0]:
@@ -51,13 +51,14 @@ class NativeGateway(CustomLogger):
     async def async_pre_call_deployment_hook(self, kwargs, call_type):
         scope = self.routes.scope
         model = kwargs.get("model")
-        if model == self.routes.external_model:
+        if model is not None and model in (self.routes.external_model, self.routes.openai_model):
+            provider = "openai" if model == self.routes.openai_model else "anthropic"
             if (any(k.startswith("oci_") for k in kwargs)
-                    or kwargs.get("custom_llm_provider") not in (None, "anthropic")
+                    or kwargs.get("custom_llm_provider") not in (None, provider)
                     or any(kwargs.get(k) is not None for k in ("api_base", "base_url", "extra_body"))):
                 reject()
             return kwargs
-        if (model != "oci/" + scope.model_id
+        if (scope is None or model != "oci/" + scope.model_id
                 or kwargs.get("oci_region") != scope.region
                 or kwargs.get("oci_compartment_id") != scope.compartment_id
                 or kwargs.get("custom_llm_provider") not in (None, "oci")

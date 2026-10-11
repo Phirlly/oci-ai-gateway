@@ -1,13 +1,13 @@
 {
-  "schema_version": 3,
+  "schema_version": 4,
   "tenancy_ocid": "REPLACE_WITH_OC1_TENANCY_OCID",
   "compartment_ocid": "REPLACE_WITH_OC1_COMPARTMENT_OCID",
   "region": "us-ashburn-1",
   "deployment_id": "gateway-demo",
-  "oci_model_id": "google.gemini-2.5-flash-lite",
+  "models": {
+    "oci": "google.gemini-2.5-flash-lite"
+  },
   "inference_region": "us-ashburn-1",
-  "external_provider": "anthropic",
-  "external_model_id": "claude-sonnet-4-6",
   "presenter_email": "presenter@example.com",
   "instance_shape": "VM.Standard.E5.Flex",
   "instance_ocpus": 2,

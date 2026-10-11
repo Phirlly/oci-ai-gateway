@@ -41,7 +41,7 @@ run "metadata_is_secret_free_bounded_and_has_resumable_bootstrap" {
     error_message = "Runtime assets must be embedded; public IP is a later attested handoff."
   }
   assert {
-    condition     = length(oci_identity_policy.runtime_bundle.statements) == 1 && one(oci_identity_policy.runtime_bundle.statements) == "Allow any-user to read secret-bundles in compartment id ${var.compartment_ocid} where all {request.principal.type='instance', request.instance.id='ocid1.instance.oc1.iad.synthetic', target.secret.id='ocid1.vaultsecret.oc1.iad.aaaaaaaaexamplesecret', request.operation='GetSecretBundle'}"
+    condition     = length(oci_identity_policy.runtime_bundle[0].statements) == 1 && one(oci_identity_policy.runtime_bundle[0].statements) == "Allow any-user to read secret-bundles in compartment id ${var.compartment_ocid} where all {request.principal.type='instance', request.instance.id='ocid1.instance.oc1.iad.synthetic', target.secret.id='ocid1.vaultsecret.oc1.iad.aaaaaaaaexamplesecret', request.operation='GetSecretBundle'}"
     error_message = "Grant only the exact instance's read of this secret bundle."
   }
 }

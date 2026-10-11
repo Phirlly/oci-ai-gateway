@@ -58,6 +58,18 @@ def _unique(pairs):
 
 
 def validate_settings(value):
+    if isinstance(value, dict) and type(value.get("schema_version")) is int and value["schema_version"] == 4:
+        from .provider_selection import validate_models
+        models = validate_models(value.get("models"))
+        patterns = {key: pattern for key, pattern in SETTINGS_PATTERNS.items()
+                    if key not in {"model_id", "external_provider", "external_model_id", "inference_region"}}
+        if "oci" in models:
+            patterns["inference_region"] = REGION
+        if (set(value) != {"schema_version", "models", *patterns}
+                or any(not _matches(value[key], pattern) or len(value[key]) > 512
+                       for key, pattern in patterns.items())):
+            raise GatewayError("Invalid optional-provider runtime settings")
+        return {**value, "models": models}
     if (not isinstance(value, dict) or set(value) != {"schema_version", *SETTINGS_PATTERNS}
             or type(value.get("schema_version")) is not int or value["schema_version"] not in (1, 3)
             or any(not isinstance(value[key], str) or len(value[key]) > 512
@@ -90,6 +102,9 @@ def load_bundle(content, settings, instance_id, *, now=None):
         if not isinstance(content, bytes) or len(content) > 16384:
             raise ValueError
         value = json.loads(content, object_pairs_hook=_unique)
+        if settings["schema_version"] == 4:
+            from .optional_bundle import load_optional_bundle
+            return load_optional_bundle(value, settings, instance_id)
         native = settings["schema_version"] == 3
         fields = {"schema_version", "kind", "identity", "operation_id", "runtime", "credentials"}
         if not native:

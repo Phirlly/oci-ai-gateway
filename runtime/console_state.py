@@ -68,23 +68,44 @@ class ConsoleState:
     def __init__(self, directory, context, context_secret_id):
         self.directory = directory
         self.run = context["verification_run"]
+        self.optional = context["settings"]["schema_version"] == 2
+        self.total, self.providers = 8, set()
+        if self.optional:
+            from demo.samples import sample_count
+            from .provider_selection import model_aliases
+            settings = context["settings"]["runtime"]
+            self.total = sample_count(model_aliases(settings))
+            self.providers = set(settings["models"]) - {"oci"}
         identity = {key: value for key, value in context.items() if key != "verification_run"}
         identity["context_secret_id"] = context_secret_id
         self.identity = sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
 
     def validate(self, value):
-        if (not isinstance(value, dict) or set(value) != {
-                "identity", "run", "phase", "external_version", "result", "passed", "finished_at"}
+        fields = {"identity", "run", "phase", "external_version", "result", "passed", "finished_at"}
+        if self.optional:
+            fields = fields - {"external_version"} | {"schema_version", "provider_versions", "total"}
+        if not isinstance(value, dict) or set(value) != fields:
+            raise GatewayError("Console run fields differ from this deployment")
+        if self.optional:
+            versions = value["provider_versions"]
+            valid_versions = (versions is None or isinstance(versions, dict) and set(versions) == self.providers
+                              and all(type(v) is int and v > 0 for v in versions.values()))
+            pinned = versions is not None
+            if type(value["schema_version"]) is not int or value["schema_version"] != 2 or value["total"] != self.total:
+                raise GatewayError("Console run schema or sample count changed")
+        else:
+            valid_versions = type(value["external_version"]) is int and value["external_version"] >= 0
+            pinned = value["external_version"] != 0
+        if (not valid_versions
                 or value["identity"] != self.identity or type(value["run"]) is not int
                 or not 1 <= value["run"] <= 20 or value["run"] > self.run
                 or value["phase"] not in PHASES or value["result"] not in RESULTS
-                or type(value["external_version"]) is not int or value["external_version"] < 0
-                or type(value["passed"]) is not int or not 0 <= value["passed"] <= 8
+                or type(value["passed"]) is not int or not 0 <= value["passed"] <= self.total
                 or not isinstance(value["finished_at"], str)
                 or (value["finished_at"] and re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ", value["finished_at"]) is None)
-                or (value["phase"] != "preparing" and value["external_version"] == 0)
+                or (value["phase"] != "preparing" and not pinned)
                 or (value["phase"] == "complete" and (value["result"] == "PENDING" or not value["finished_at"]))
-                or (value["result"] == "READY" and (value["phase"] != "complete" or value["passed"] != 8))):
+                or (value["result"] == "READY" and (value["phase"] != "complete" or value["passed"] != self.total))):
             raise GatewayError("Console run identity or evidence changed; explicit recovery is required")
         return value
 
@@ -101,5 +122,8 @@ class ConsoleState:
         if value is None or value["run"] < self.run:
             value = {"identity": self.identity, "run": self.run, "phase": "preparing",
                      "external_version": 0, "result": "PENDING", "passed": 0, "finished_at": ""}
+            if self.optional:
+                del value["external_version"]
+                value.update(schema_version=2, provider_versions=None, total=self.total)
             self.save(value)
         return value

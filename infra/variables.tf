@@ -23,10 +23,10 @@ variable "deployment_id" {
 variable "oci_model_id" {
   description = "Exact OCI model ID to authorize. Availability and bearer compatibility require deployment preflight."
   type        = string
-  nullable    = false
+  default     = null
 
   validation {
-    condition     = can(regex("^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,254}$", var.oci_model_id))
+    condition     = var.oci_model_id == null ? true : can(regex("^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,254}$", var.oci_model_id))
     error_message = "oci_model_id must be a nonempty model identifier containing only letters, digits, dots, underscores, colons or hyphens."
   }
 }

@@ -6,15 +6,23 @@ require acceptance. GitHub Actions remains available through [setup](SETUP.md).
 
 ## Prerequisites
 
-- An OCI OC1 tenancy, compartment and subscribed hosting/inference regions.
+- An OCI OC1 tenancy, compartment and subscribed hosting region.
 - Permission to manage Resource Manager, Compute/network, Vault/keys/secrets and
   the deployment's IAM policies in the tenancy home region; read regional metadata.
 - Capacity for an E4/E5 Flex AMD VM and a regional Canonical Ubuntu24.04 image.
-- Access to the configured OCI Chat model and an Anthropic key for its model.
+- Access to each selected model. OCI inference needs a subscribed inference
+  region; Anthropic/OpenAI need their own API keys only when enabled.
 
-The defaults match the existing deployment: OCI `google.gemini-2.5-flash-lite`
-and Anthropic `claude-sonnet-4-6`. Availability depends on region/account;
-OCI's Gemini route is hosted by Google. Budget for resources and model calls.
+| Optional provider | Example model | Credential |
+|---|---|---|
+| OCI Generative AI (enabled by default) | `google.gemini-2.5-flash-lite` | VM instance identity; no model API key |
+| Anthropic | `claude-sonnet-4-6` | Anthropic API key |
+| OpenAI | `gpt-4.1-mini-2025-04-14` | OpenAI project API key |
+
+Enable at least one provider, with one model per provider. Model IDs are
+configurable within the supported adapters; access/compatibility must be verified.
+Availability depends on region/account. OCI's Gemini route is hosted by Google.
+Budget for resources and model calls.
 
 ## Deploy and demonstrate
 
@@ -22,16 +30,18 @@ OCI's Gemini route is hosted by Google. Budget for resources and model calls.
    candidate must come from a reviewed, publicly available source commit. A raw
    GitHub source ZIP is not the prepared package.
 2. Select the compartment, unique deployment name, availability domain and
-   Ubuntu24.04 AMD image. Review models, regions and presenter username. **Apply**.
-3. Open **Save Anthropic key** in stack outputs. Create a plain-text secret
-   version containing your key; make it **CURRENT**. Do not put keys/passwords
-   in stack variables. The stack creates the Vault and secret containers.
+   Ubuntu24.04 AMD image. Enable the providers you want and review their model
+   IDs, inference region if using OCI, and presenter username. **Apply**.
+3. For each enabled external provider, open **Save Anthropic key** or **Save
+   OpenAI key** in outputs. Save that provider's key as a **CURRENT** plain-text
+   secret version. Skip this step for OCI-only. The stack creates the Vault and
+   secret containers; never put keys/passwords in stack variables.
 4. Open **Check last verification**. Installation/TLS may take several minutes.
    Missing credentials show `WAITING_CREDENTIALS`. **READY** requires trusted
-   HTTPS, presenter login/access and all eight samples through the two models.
+   HTTPS, presenter login/access and all samples: four per enabled model.
 5. Open **View presenter password**, view the secret contents and copy its
    `password` field. Sign into **Open Compare** with the reported username.
-   Select both models and follow the [short demo script](demo/PROMPT.md).
+   Select the enabled models and follow the [short demo script](demo/PROMPT.md).
 
 The VM installs the pinned applications, generates its internal credentials,
 creates the presenter and runs the bundled samples. No GitHub fork, runner
@@ -42,15 +52,16 @@ Source installation verifies hashes from the package's exact public Git commit.
 
 - Reuse Compare without redeploying. Status reports the **last verification**,
   not continuous model health. Ordinary status polling makes no model calls.
-- To retry failed/interrupted samples or activate a corrected Anthropic key,
+- To retry failed/interrupted samples or activate corrected external keys,
   increase **verification_run** and Apply. Runs range from 1 to 20 and never decrease.
-  Each run allows eight samples, with bounded retries only for completed HTTP429
+  Each run has4,8 or12 samples, with bounded retries only for completed HTTP429
   responses. Uncertain model calls are never automatically replayed.
 - Setup retries preserve the database, internal keys and initialized presenter.
   If you change the presenter password in the UI, update the presenter secret's
   `password` field to the current value for subsequent verification.
 - Keep deployment identity, models, region, image and presenter identity unchanged.
-  Use a new deployment for those changes or after 20 verification runs. Remove
+  Provider selection is also fixed for a deployment. Use a new deployment for
+  those changes or after20 verification runs. Remove
   the old deployment if it is no longer needed.
 - `WAITING_FRONTEND` waits for public HTTPS/login. `ERROR` before verification
   retries setup; a completed `ERROR`, `FAILED` or `INTERRUPTED` requires a new run.
@@ -61,7 +72,7 @@ Source installation verifies hashes from the package's exact public Git commit.
 Run **Destroy** in Resource Manager. It removes deployment-owned resources even
 when the VM is unavailable. Vaults/secrets may remain scheduled for deletion.
 Confirm Destroy succeeded before deleting the stack. The supplied compartment,
-OCI identity and Anthropic account/key are preserved.
+OCI identity and external provider accounts/keys are preserved.
 
 This single-VM demo has no high availability, automated credential rotation or
 production backup/restore.

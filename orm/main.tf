@@ -6,11 +6,9 @@ module "gateway" {
   compartment_ocid           = var.compartment_ocid
   region                     = var.region
   deployment_id              = var.deployment_id
-  schema_version             = 3
-  oci_model_id               = var.oci_model_id
-  inference_region           = coalesce(var.inference_region, var.region)
-  external_provider          = "anthropic"
-  external_model_id          = var.external_model_id
+  schema_version             = 4
+  models                     = local.models
+  inference_region           = var.enable_oci ? coalesce(var.inference_region, var.region) : null
   presenter_email            = var.presenter_email
   instance_shape             = var.instance_shape
   instance_ocpus             = var.instance_ocpus
@@ -21,6 +19,7 @@ module "gateway" {
   console_image_ocid         = var.image_ocid
   console_ad_name            = var.availability_domain
   console_cloud_init         = local.cloud_init
+  console_mode               = true
 }
 
 data "oci_core_image" "selected" {
@@ -35,22 +34,25 @@ data "oci_core_image" "selected" {
 
 locals {
   tags = { solution = "oci-ai-gateway-lab", deployment_id = var.deployment_id }
-  native_settings = {
-    schema_version    = 3
-    deployment_id     = var.deployment_id
-    tenancy_ocid      = var.tenancy_ocid
-    compartment_ocid  = var.compartment_ocid
-    region            = var.region
-    inference_region  = coalesce(var.inference_region, var.region)
-    model_id          = var.oci_model_id
-    external_provider = "anthropic"
-    external_model_id = var.external_model_id
-    presenter_email   = var.presenter_email
-    secret_ocid       = module.gateway.runtime_secret_ocid
-  }
+  models = merge(
+    var.enable_oci ? { oci = var.oci_model_id } : {},
+    var.enable_anthropic ? { anthropic = var.anthropic_model_id } : {},
+    var.enable_openai ? { openai = var.openai_model_id } : {},
+  )
+  runtime_settings = merge({
+    schema_version   = 4
+    deployment_id    = var.deployment_id
+    tenancy_ocid     = var.tenancy_ocid
+    compartment_ocid = var.compartment_ocid
+    region           = var.region
+    models           = local.models
+    presenter_email  = var.presenter_email
+    secret_ocid      = module.gateway.runtime_secret_ocid
+  }, var.enable_oci ? { inference_region = coalesce(var.inference_region, var.region) } : {})
   console_settings = {
-    schema_version        = 1
-    native                = local.native_settings
+    schema_version        = 2
+    runtime               = local.runtime_settings
+    provider_secrets      = { for provider, secret in oci_vault_secret.provider : provider => secret.id }
     vault_ocid            = module.gateway.runtime_vault_ocid
     presenter_secret_ocid = oci_vault_secret.presenter.id
     context_name          = "${var.deployment_id}-context"

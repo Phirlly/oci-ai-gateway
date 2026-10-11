@@ -62,5 +62,5 @@ def observe_gateway(client, journal, target, package, compute):
         return GatewayObservation('APPLY_' + job.state, stack_id, job)
     package.verify(client.get_job_package(job.job_id))
     context = resolve_runtime_context(compute, client.list_job_resources(job.job_id, target.compartment_id), target.config)
-    native = target.config.values.get('schema_version') == 3
+    native = target.config.values.get('schema_version') in (3, 4)
     return GatewayObservation('DEPLOYED' if native or job.model_key_ocid else 'CREDENTIALS_NOT_BOUND', stack_id, job, context)

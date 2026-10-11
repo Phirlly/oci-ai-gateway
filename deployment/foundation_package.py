@@ -42,6 +42,9 @@ NATIVE_RUNTIME_FILES = (
 )
 NATIVE_FILES = GATEWAY_FILES | {'runtime/' + name: 'runtime/' + name for name in NATIVE_RUNTIME_FILES}
 NATIVE_MEMBERS = frozenset(NATIVE_FILES) | {'runtime/source.json'}
+OPTIONAL_FILES = NATIVE_FILES | {'runtime/' + name: 'runtime/' + name for name in (
+    'provider_selection.py', 'optional_bundle.py', 'optional_startup.py')}
+OPTIONAL_MEMBERS = frozenset(OPTIONAL_FILES) | {'runtime/source.json'}
 MAX_ARCHIVE_BYTES = 1024 * 1024
 MAX_MEMBER_BYTES = 256 * 1024
 
@@ -53,7 +56,7 @@ def archive_digest(content):
         with zipfile.ZipFile(io.BytesIO(content)) as archive:
             entries = archive.infolist()
             names = {e.filename for e in entries}
-            if len(entries) != len(names) or names not in (MEMBERS, GATEWAY_MEMBERS, NATIVE_MEMBERS):
+            if len(entries) != len(names) or names not in (MEMBERS, GATEWAY_MEMBERS, NATIVE_MEMBERS, OPTIONAL_MEMBERS):
                 raise ValueError
             if sum(e.file_size for e in entries) > MAX_ARCHIVE_BYTES:
                 raise ValueError
@@ -89,12 +92,14 @@ class FoundationPackage:
 
     @property
     def is_gateway(self):
-        return self.schema_version in (2, 3)
+        return self.schema_version in (2, 3, 4)
 
     @property
     def schema_version(self):
         with zipfile.ZipFile(io.BytesIO(self.content)) as archive:
             names = frozenset(archive.namelist())
+            if names == OPTIONAL_MEMBERS:
+                return 4
             return 3 if names == NATIVE_MEMBERS else (2 if names == GATEWAY_MEMBERS else 1)
 
     @classmethod

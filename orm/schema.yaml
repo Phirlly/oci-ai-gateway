@@ -1,14 +1,16 @@
 title: OCI AI Gateway
-description: Compare an OCI-managed model and Anthropic through LiteLLM on OCI.
+description: Use optional OCI Generative AI, Anthropic and OpenAI models through one gateway on OCI.
 schemaVersion: 1.1.0
 version: "1.0"
 locale: en
-instructions: Apply, save your Anthropic key in the external secret, then open Deployment status. Read the generated presenter password in Secret Management. Apply success does not mean Ready.
+instructions: Enable at least one provider and Apply. Save keys only for enabled external providers using the output links. Open Deployment status, then use the generated presenter password. Apply success does not mean Ready.
 variableGroups:
   - title: Deployment
     variables: ["${compartment_ocid}", "${deployment_id}", "${availability_domain}", "${image_ocid}", "${presenter_email}"]
-  - title: Models and capacity
-    variables: ["${oci_model_id}", "${inference_region}", "${external_model_id}", "${instance_shape}", "${instance_ocpus}", "${instance_memory_gbs}"]
+  - title: Optional model providers
+    variables: ["${enable_oci}", "${oci_model_id}", "${inference_region}", "${enable_anthropic}", "${anthropic_model_id}", "${enable_openai}", "${openai_model_id}"]
+  - title: Capacity
+    variables: ["${instance_shape}", "${instance_ocpus}", "${instance_memory_gbs}"]
   - title: Verification
     variables: ["${verification_run}"]
 variables:
@@ -39,16 +41,22 @@ variables:
       operatingSystem: Canonical Ubuntu
       operatingSystemVersion: "24.04"
   presenter_email: {type: string, title: Presenter username, required: true}
+  enable_oci: {type: boolean, title: Enable OCI Generative AI, required: true}
+  enable_anthropic: {type: boolean, title: Enable Anthropic (optional API key), required: true}
+  enable_openai: {type: boolean, title: Enable OpenAI (optional API key), required: true}
   oci_model_id:
     type: string
     title: OCI Chat model
     description: Must be available to your tenancy in the inference region; availability differs by region.
     required: true
+    visible: ${enable_oci}
   inference_region:
     type: string
     title: Inference region (optional)
     description: Leave blank to use the hosting region. A different region must already be subscribed.
-  external_model_id: {type: string, title: Anthropic model, required: true}
+    visible: ${enable_oci}
+  anthropic_model_id: {type: string, title: Anthropic model, required: true, visible: "${enable_anthropic}"}
+  openai_model_id: {type: string, title: OpenAI model, required: true, visible: "${enable_openai}"}
   instance_shape:
     type: enum
     title: VM shape
@@ -64,7 +72,8 @@ variables:
     maximum: 20
     required: true
 outputs:
-  external_key_secret_url: {type: link, title: External credentials, displayText: Save Anthropic key}
+  anthropic_key_secret_url: {type: link, title: Optional Anthropic credentials, displayText: Save Anthropic key}
+  openai_key_secret_url: {type: link, title: Optional OpenAI credentials, displayText: Save OpenAI key}
   presenter_password_secret_url: {type: link, title: Presenter credentials, displayText: View presenter password}
   status_url: {type: link, title: Deployment status, displayText: Check last verification}
   compare_url: {type: link, title: LiteLLM Compare, displayText: Open Compare}

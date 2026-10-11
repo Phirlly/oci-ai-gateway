@@ -3,11 +3,13 @@
 import json
 
 import httpx
+from openai import AsyncOpenAI
 from litellm.llms.custom_httpx.http_handler import AsyncHTTPHandler
 
 from payload_fixture import response_body
 from http_fixture import AsyncBody, complete
 from external_payload_fixture import external_response
+from openai_payload_fixture import response as openai_response
 
 
 class NativeUpstream:
@@ -15,11 +17,27 @@ class NativeUpstream:
         self.requests = []
         self.bodies = []
         self.mode = "complete"
+        self.openai_client = None
         self.handler = AsyncHTTPHandler(transport=httpx.MockTransport(self.reply),
                                        follow_redirects=False, timeout=3)
 
+    def openai(self, key):
+        if self.openai_client is None:
+            self.openai_client = AsyncOpenAI(api_key=key, max_retries=0,
+                http_client=httpx.AsyncClient(transport=httpx.MockTransport(self.reply), timeout=3))
+        return self.openai_client
+
     def reply(self, request):
         self.requests.append(request)
+        if request.url.host == "api.openai.com":
+            if self.mode == "rate_limit":
+                return httpx.Response(429, json={"error": {"type": "rate_limit_error", "message": "Synthetic limit"}})
+            value = openai_response(json.loads(request.content).get("stream", False))
+            if isinstance(value, dict):
+                return httpx.Response(200, json=value)
+            body = AsyncBody(value)
+            self.bodies.append(body)
+            return httpx.Response(200, stream=body, headers={"content-type": "text/event-stream"})
         if request.url.host == "api.anthropic.com":
             if self.mode == "context_error":
                 return httpx.Response(400, json={"type": "error", "error": {
@@ -48,4 +66,6 @@ class NativeUpstream:
         return httpx.Response(200, json=response_body(reason))
 
     async def close(self):
+        if self.openai_client is not None:
+            await self.openai_client.close()
         await self.handler.close()

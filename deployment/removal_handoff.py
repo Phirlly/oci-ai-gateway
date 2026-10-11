@@ -62,7 +62,7 @@ def advance_removal(client, journal, target, package, *, vault, keys, inference_
         base_hash = apply_request_hash(stack_id, target.config.orm_variables(model_key_ocid=None), package.digest)
         base = latest_applies(intents).get(base_hash)
         successful = base is not None and jobs[base.operation_id].state == 'SUCCEEDED'
-        native = target.config.values.get('schema_version') == 3
+        native = target.config.values.get('schema_version') in (3, 4)
         if successful and not native:
             if vault is None or keys is None or vault.region != target.config.values['region']:
                 raise DeliveryError('Owned credential history requires the hosting Vault and inference key clients.')

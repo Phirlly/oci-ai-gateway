@@ -12,6 +12,7 @@ from .compute_cli import ComputeCLI
 from .credential_errors import DeliveryError
 from .deployment_config import load_config
 from .native_package import NativePackage
+from .optional_package import OptionalPackage
 from .gateway_actions import GatewayActions
 from .gateway_config import GatewayConfig
 from .github_http import GitHubHTTP
@@ -40,8 +41,9 @@ def create_actions(config, connection, environment, action):
     target = StackTarget(config, journal.controller_id)
     def build():
         if not config.is_native:
-            raise DeliveryError('Fresh deployments require version3 settings and a new deployment ID; preserve original version2 settings for recovery.')
-        candidate = NativePackage.build(ROOT, repository=environment['GITHUB_REPOSITORY'],
+            raise DeliveryError('Fresh deployments require version3 or version4 native settings and a new deployment ID; preserve original version2 settings for recovery.')
+        package_type = OptionalPackage if config.is_optional else NativePackage
+        candidate = package_type.build(ROOT, repository=environment['GITHUB_REPOSITORY'],
                                         commit=environment['GITHUB_SHA'])
         if action == 'Deploy':
             candidate.verify_public_source()
@@ -112,7 +114,9 @@ def main(argv=None, environment=None):
         with connection as selected:
             actions = create_actions(config, selected, environment, options.action)
             if options.action == 'Deploy':
-                result = actions.deploy(environment.get('ANTHROPIC_API_KEY'), environment.get('DEMO_PASSWORD'))
+                keys = ({name + '_api_key': environment.get(name.upper() + '_API_KEY')
+                         for name in ('anthropic', 'openai')} if config.is_optional else environment.get('ANTHROPIC_API_KEY'))
+                result = actions.deploy(keys, environment.get('DEMO_PASSWORD'))
             elif options.action == 'Verify samples':
                 result = actions.verify(environment.get('DEMO_PASSWORD'))
             elif options.action == 'Status':

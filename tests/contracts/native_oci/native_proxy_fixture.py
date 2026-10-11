@@ -33,12 +33,14 @@ class OfflineTransport(CustomLogger):
         self.upstream = upstream
 
     async def async_pre_call_deployment_hook(self, kwargs, call_type):
-        kwargs["client"] = self.upstream.handler
+        kwargs["client"] = (self.upstream.openai(kwargs["api_key"]) if kwargs.get("custom_llm_provider") == "openai"
+                            or str(kwargs.get("model", "")).startswith("openai/") else self.upstream.handler)
         return kwargs
 
 
 class NativeProxyCase(unittest.IsolatedAsyncioTestCase):
     allow_client_credentials = False
+    providers = ("oci", "anthropic")
 
     async def asyncSetUp(self):
         self.saved_callbacks = {name: getattr(litellm, name) for name in (
@@ -79,15 +81,24 @@ class NativeProxyCase(unittest.IsolatedAsyncioTestCase):
                                  "allow_client_side_credentials": self.allow_client_credentials},
         }
         config_path = path / "config.yaml"
+        if self.providers != ("oci", "anthropic"):
+            from runtime.provider_selection import model_routes
+            examples = {"oci": MODEL, "anthropic": "claude-sonnet-4-6", "openai": "gpt-4.1-mini-2025-04-14"}
+            config["model_list"] = model_routes({"models": {p: examples[p] for p in self.providers},
+                                                 "inference_region": "us-ashburn-1", "compartment_ocid": COMPARTMENT})
         config_path.write_text(json.dumps(config))
         config_path.chmod(0o600)
         self.context.enter_context(patch.object(oci_gateway_config, "GATEWAY_CONFIG", config_path))
-        self.context.enter_context(patch.dict(os.environ, {"ANTHROPIC_API_KEY": "synthetic-external-key"}))
+        self.context.enter_context(patch.dict(os.environ, {"ANTHROPIC_API_KEY": "synthetic-external-key",
+                                                         "OPENAI_API_KEY": "synthetic-openai-key"}))
         await proxy_server.initialize(config=str(config_path), drop_params=False, request_timeout=3)
         matches = [item for item in litellm.callbacks if type(item).__name__ == "NativeGateway"]
         self.assertEqual(len(matches), 1, "config did not load exactly one module instance")
         self.probe = matches[0]
-        self.assertIsInstance(self.probe.oci_signer, SocketSigner)
+        if "oci" in self.providers:
+            self.assertIsInstance(self.probe.oci_signer, SocketSigner)
+        else:
+            self.assertIsNone(self.probe.oci_signer)
         self.upstream = NativeUpstream()
         litellm.callbacks.append(OfflineTransport(self.upstream))
         self.assertIs(litellm.drop_params, False)

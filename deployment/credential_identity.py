@@ -19,7 +19,21 @@ def valid_ocid(value, resource):
 
 
 def valid_identity(value):
-    if not isinstance(value, dict) or set(value) != IDENTITY_FIELDS:
+    if not isinstance(value, dict):
+        return False
+    optional = "models" in value
+    expected = IDENTITY_FIELDS
+    if optional:
+        from runtime.gateway_http import GatewayError
+        from runtime.provider_selection import validate_models
+        try:
+            models = validate_models(value["models"])
+        except GatewayError:
+            return False
+        expected = (IDENTITY_FIELDS - {"model_id", "inference_region"}) | {"models"}
+        if "oci" in models:
+            expected.add("inference_region")
+    if set(value) != expected:
         return False
     if not all(valid_ocid(value[key], kind) for key, kind in OCID_TYPES.items()):
         return False
@@ -28,6 +42,10 @@ def valid_identity(value):
         "inference_region": r"[a-z]{2,}-[a-z0-9-]+-[0-9]+",
         "model_id": r"[a-zA-Z0-9][a-zA-Z0-9._:-]{0,254}",
     }
+    if optional:
+        del patterns["model_id"]
+        if "oci" not in models:
+            del patterns["inference_region"]
     return all(
         isinstance(value[key], str) and re.fullmatch(pattern, value[key])
         for key, pattern in patterns.items()

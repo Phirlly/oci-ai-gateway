@@ -9,7 +9,7 @@ from pathlib import Path
 
 from .gateway_http import GatewayError
 from .oci_signing_scope import SigningScope
-from .runtime_bundle import MODEL_ALIASES, SETTINGS_PATTERNS
+from .runtime_bundle import MODEL_ALIASES
 
 GATEWAY_CONFIG = Path("/app/config.json")
 NATIVE_PARAMS = {"model", "oci_region", "oci_compartment_id", "additional_drop_params",
@@ -19,33 +19,48 @@ INVALID_CONFIG = "Native gateway configuration is invalid"
 
 @dataclass(frozen=True)
 class GatewayRoutes:
-    scope: SigningScope
-    external_model: str
+    scope: SigningScope | None
+    external_model: str | None
+    openai_model: str | None = None
+
+    @property
+    def aliases(self):
+        return tuple(alias for alias, enabled in (
+            (MODEL_ALIASES[0], self.scope), (MODEL_ALIASES[1], self.external_model),
+            ("external-openai", self.openai_model)) if enabled is not None)
+
+
+def _external(params, provider):
+    if (not isinstance(params, dict) or set(params) != {"model", "api_key"}
+            or params["api_key"] != "os.environ/" + provider.upper() + "_API_KEY"
+            or not isinstance(params["model"], str)
+            or re.fullmatch(provider + r"/[a-zA-Z0-9][a-zA-Z0-9._:-]{0,254}", params["model"]) is None):
+        raise ValueError
+    return params["model"]
+
+
+def _native(native):
+    if (not isinstance(native, dict) or set(native) != NATIVE_PARAMS
+            or not isinstance(native["model"], str) or not native["model"].startswith("oci/")
+            or native["additional_drop_params"] != ["stream_options"]
+            or type(native["num_retries"]) is not int or native["num_retries"] != 0
+            or type(native["max_tokens"]) is not int or not 1 <= native["max_tokens"] <= 4096):
+        raise ValueError
+    return SigningScope(native["oci_region"], native["oci_compartment_id"], native["model"][4:])
 
 
 def parse_routes(value):
     try:
         rows = value["model_list"]
-        if not isinstance(rows, list) or len(rows) != 2:
+        if not isinstance(rows, list) or not 1 <= len(rows) <= 3:
             raise ValueError
         routes = {row["model_name"]: row["litellm_params"] for row in rows}
-        if set(routes) != set(MODEL_ALIASES):
+        if len(routes) != len(rows) or not set(routes) <= {*MODEL_ALIASES, "external-openai"}:
             raise ValueError
-        native, external = (routes[name] for name in MODEL_ALIASES)
-        if (not isinstance(native, dict) or set(native) != NATIVE_PARAMS
-                or not isinstance(native["model"], str) or not native["model"].startswith("oci/")
-                or native["additional_drop_params"] != ["stream_options"]
-                or type(native["num_retries"]) is not int or native["num_retries"] != 0
-                or type(native["max_tokens"]) is not int or not 1 <= native["max_tokens"] <= 4096):
-            raise ValueError
-        scope = SigningScope(native["oci_region"], native["oci_compartment_id"], native["model"][4:])
-        if (not isinstance(external, dict) or set(external) != {"model", "api_key"}
-                or external["api_key"] != "os.environ/ANTHROPIC_API_KEY"
-                or not isinstance(external["model"], str)
-                or not external["model"].startswith("anthropic/")
-                or re.fullmatch(SETTINGS_PATTERNS["external_model_id"], external["model"][10:]) is None):
-            raise ValueError
-        return GatewayRoutes(scope, external["model"])
+        scope = _native(routes[MODEL_ALIASES[0]]) if MODEL_ALIASES[0] in routes else None
+        anthropic = _external(routes[MODEL_ALIASES[1]], "anthropic") if MODEL_ALIASES[1] in routes else None
+        openai = _external(routes["external-openai"], "openai") if "external-openai" in routes else None
+        return GatewayRoutes(scope, anthropic, openai)
     except (GatewayError, ValueError, TypeError, KeyError):
         raise GatewayError(INVALID_CONFIG) from None
 

@@ -28,7 +28,7 @@ class CredentialRecord:
 
     @property
     def is_native(self):
-        return json.loads(self.content)["schema_version"] == 3
+        return json.loads(self.content)["schema_version"] in (3, 4)
 
     @property
     def runtime_context(self):
@@ -84,9 +84,11 @@ def parse_record(content, identity):
             raise ValueError("Identity")
         if value.get("identity") != identity or type(value.get("schema_version")) is not int:
             raise ValueError("Identity or schema")
-        if value["schema_version"] not in (1, 2, 3):
+        if value["schema_version"] not in (1, 2, 3, 4):
             raise ValueError("Schema")
-        if value["schema_version"] == 3:
+        if (value["schema_version"] == 4) != ("models" in identity):
+            raise ValueError("Identity schema")
+        if value["schema_version"] in (3, 4):
             return _native_record(value)
         fields = BASE_FIELDS
         if value["schema_version"] == 2:
@@ -130,14 +132,19 @@ def parse_record(content, identity):
 
 def _native_record(value):
     """Native identity has no generated inference key or synthetic expiry."""
+    optional = value["schema_version"] == 4
     if (set(value) != (BASE_FIELDS - {"expires_at"}) | {"runtime", "credentials"}
             or value["kind"] != "runtime-bundle"
-            or not valid_runtime_context(value["runtime"])
+            or not valid_runtime_context(value["runtime"], optional=optional)
             or not isinstance(value["operation_id"], str)
             or re.fullmatch(r"[a-f0-9]{32}", value["operation_id"]) is None):
         raise ValueError("Native fields")
     credentials = value["credentials"]
-    if (not isinstance(credentials, dict) or set(credentials) != SECRET_FIELDS - {"oci_api_key"}
+    if optional:
+        from runtime.optional_bundle import valid_credentials
+        if not valid_credentials(credentials, value["identity"]):
+            raise ValueError("Optional credentials")
+    elif (not isinstance(credentials, dict) or set(credentials) != SECRET_FIELDS - {"oci_api_key"}
             or not all(valid_secret(secret) for secret in credentials.values())
             or not valid_presenter_password(credentials["demo_password"])):
         raise ValueError("Native credentials")

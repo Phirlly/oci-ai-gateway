@@ -20,7 +20,8 @@ def record(kind="runtime-bundle", **changes):
 
 
 class MemoryVault:
-    def __init__(self):
+    def __init__(self, identity=IDENTITY):
+        self.identity = deepcopy(identity)
         self.current = 1
         self.etag = 1
         self.rows = {1: ("unconfigured", b"UNCONFIGURED")}
@@ -44,7 +45,7 @@ class MemoryVault:
 
     def metadata(self, secret_id):
         data = {
-            "id": secret_id, "compartment-id": IDENTITY["compartment_ocid"],
+            "id": secret_id, "compartment-id": self.identity["compartment_ocid"],
             "vault-id": VAULT_ID, "key-id": ENCRYPTION_KEY_ID,
             "lifecycle-state": "ACTIVE", "current-version-number": self.current,
             "freeform-tags": {"solution": "oci-ai-gateway-lab", "deployment_id": "gateway-test"},
@@ -84,7 +85,7 @@ class MemoryVault:
         self.mutations.append(("stage", version_name, etag))
         if self.reject_stage or etag != str(self.etag):
             raise MutationUncertain("Synthetic lost/rejected request.")
-        value = parse_record(content, IDENTITY)
+        value = parse_record(content, self.identity)
         assert value.version_name == version_name
         self.add(value)
         if self.lose_stage_reply:

@@ -27,7 +27,7 @@ locals {
         path        = "/etc/oci-ai-gateway.json"
         owner       = "root:root"
         permissions = "0600"
-        content     = jsonencode(local.native_settings)
+        content     = jsonencode(local.runtime_settings)
       },
       {
         path        = "/etc/oci-ai-gateway-console.json"

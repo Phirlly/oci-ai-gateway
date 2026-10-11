@@ -8,6 +8,7 @@ from hashlib import sha256
 from pathlib import Path
 
 from .install_assets import asset_destination, install_assets
+from .gateway_http import GatewayError
 from .source_archive import load_manifest, validate_manifest
 from .source_download import download_sources
 
@@ -51,6 +52,9 @@ def main(*, console=False):
                 raise ValueError("Unsafe runtime source manifest")
             manifest = load_manifest(stream.read(16385))
         prepare_sources(manifest)
+        if "runtime/optional_startup.py" in manifest["files"]:
+            from .optional_startup import prepare_host
+            prepare_host()
         from .host_commands import _run
         _run(["/usr/bin/systemctl", "daemon-reload"], "Downloaded service unit activation", 30)
         if console:
@@ -58,7 +62,7 @@ def main(*, console=False):
         else:
             from .bootstrap import main as bootstrap
         return bootstrap()
-    except (OSError, ValueError, TypeError, RecursionError):
+    except (OSError, ValueError, TypeError, RecursionError, GatewayError):
         print("Runtime sources could not be verified; bootstrap timer will retry", file=sys.stderr)
         return 1
 

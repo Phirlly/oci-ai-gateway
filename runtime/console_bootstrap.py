@@ -10,6 +10,7 @@ from pathlib import Path
 from .console_runner import run_console
 from .console_settings import decode_json, validate_console_settings
 from .console_status import publish_status
+from .console_state import read_record
 from .gateway_http import GatewayError
 from .host_commands import ensure_dependencies
 from .host_firewall import protect_metadata
@@ -48,7 +49,9 @@ def main():
             raise GatewayError("Console bootstrap requires root")
         with locked_state(STATE):
             settings = load_config()
-            ensure_dependencies()
+            saved = read_record(STATE, "console-state.json") if settings["schema_version"] == 2 else None
+            if saved is None or saved.get("phase") == "preparing":
+                ensure_dependencies()
             protect_metadata()
             run_console(settings, STATE, STATUS)
         return 0  # Timer remains enabled to observe explicit verification_run changes.

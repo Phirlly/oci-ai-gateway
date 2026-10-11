@@ -10,9 +10,10 @@ FIELDS = {"public_ip", "public_ip_ocid", "instance_ocid",
           "presenter_email", "external_provider", "external_model_id"}
 
 
-def valid_runtime_context(value):
+def valid_runtime_context(value, *, optional=False):
     try:
-        if not isinstance(value, dict) or set(value) != FIELDS:
+        fields = FIELDS - {"external_provider", "external_model_id"} if optional else FIELDS
+        if not isinstance(value, dict) or set(value) != fields:
             return False
         address = ipaddress.IPv4Address(value["public_ip"])
         return (
@@ -23,7 +24,8 @@ def valid_runtime_context(value):
             and all(isinstance(value[field], str)
                     and len(value[field]) <= 255
                     and re.fullmatch(TEXT_PATTERNS[field], value[field]) is not None
-                    for field in ("presenter_email", "external_provider", "external_model_id"))
+                    for field in (("presenter_email",) if optional else
+                                  ("presenter_email", "external_provider", "external_model_id")))
         )
     except (ValueError, TypeError, KeyError):
         return False

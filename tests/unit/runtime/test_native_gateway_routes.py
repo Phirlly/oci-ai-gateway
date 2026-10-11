@@ -24,7 +24,7 @@ class NativeGatewayRoutes(unittest.TestCase):
 
     def test_missing_duplicate_and_extra_routes_are_rejected(self):
         rows = gateway_config()["model_list"]
-        for value in (None, [], {}, {"model_list": []}, {"model_list": rows[:1]},
+        for value in (None, [], {}, {"model_list": []},
                       {"model_list": [rows[0], rows[0]]}, {"model_list": rows + [rows[0]]},
                       {"model_list": [None, rows[1]]}):
             with self.subTest(value=value), self.assertRaises(GatewayError):

@@ -17,7 +17,7 @@ variables {
   deployment_id       = "gateway-console"
   image_ocid          = "ocid1.image.oc1.iad.retained"
   availability_domain = "synthetic:US-ASHBURN-AD-1"
-  external_model_id   = "synthetic-external"
+  anthropic_model_id  = "synthetic-external"
   presenter_email     = "presenter@example.invalid"
 }
 run "console_context_credentials_and_outputs" {
@@ -47,7 +47,7 @@ run "console_context_credentials_and_outputs" {
     values          = { id = "ocid1.vaultsecret.oc1.iad.context" }
   }
   assert {
-    condition     = var.oci_model_id == jsondecode(file("../deployment.tfvars.json.example")).oci_model_id
+    condition     = var.oci_model_id == jsondecode(file("../deployment.tfvars.json.example")).models.oci
     error_message = "Console and GitHub defaults must use the same validated model."
   }
   assert {

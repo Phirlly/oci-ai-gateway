@@ -15,7 +15,7 @@ FORBIDDEN = frozenset({
     "provider_specific_header", "router_settings_override", "drop_params",
     "additional_drop_params", "allowed_openai_params", "model_group_retry_policy",
     "litellm_request_debug", "mock_response", "mock_tool_calls", "mock_timeout",
-    "mock_testing_fallbacks", "timeout", "max_retries",
+    "mock_testing_fallbacks", "timeout", "stream_timeout", "max_retries",
     "context_window_fallbacks", "content_policy_fallbacks",
 })
 

@@ -6,10 +6,10 @@ from socket_signer_fixture import SocketProxyCase
 
 
 class AdmissionCase(SocketProxyCase):
-    async def deny(self, extra):
+    async def deny(self, extra, *, headers=None):
         for alias in (ROUTE, EXTERNAL):
-            with self.subTest(alias=alias, fields=sorted(extra)):
-                response = await self.request({"model": alias, **extra})
+            with self.subTest(alias=alias, fields=sorted(extra), headers=sorted(headers or {})):
+                response = await self.request({"model": alias, **extra}, headers=headers)
                 self.assertIn(response.status_code, (400, 401, 403), response.text[:200])
                 self.assertEqual(self.socket.requests, [])
                 self.assertEqual(self.upstream.requests, [])

@@ -109,13 +109,14 @@ class NativeProxyCase(unittest.IsolatedAsyncioTestCase):
         self.directory.cleanup()
         self.context.close()
 
-    async def request(self, extra=None, *, key=MASTER):
+    async def request(self, extra=None, *, key=MASTER, headers=None):
         body = {"model": ROUTE, "messages": [{"role": "user", "content": "Synthetic request"}],
                 "max_tokens": 32}
         body.update(extra or {})
-        headers = {"authorization": "Bearer " + key} if key is not None else {}
+        request_headers = {"authorization": "Bearer " + key} if key is not None else {}
+        request_headers.update(headers or {})
         async with asyncio.timeout(5):
-            return await self.client.post("/chat/completions", json=body, headers=headers)
+            return await self.client.post("/chat/completions", json=body, headers=request_headers)
 
     def result(self, response):
         return Response(response.status_code, response.content, dict(response.headers))

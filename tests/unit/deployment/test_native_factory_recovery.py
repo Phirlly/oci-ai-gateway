@@ -24,6 +24,7 @@ class NativeFactoryRecoveryTests(unittest.TestCase):
         self.connection = SimpleNamespace(profile="DEFAULT", config_file="synthetic")
         self.enterContext(patch("deployment.action_entrypoint.GitHubJournal", return_value=self.f.journal))
         self.enterContext(patch("deployment.action_entrypoint.ResourceManagerCLI", return_value=self.f.orm))
+        self.enterContext(patch("deployment.action_entrypoint.ComputeCLI"))
         self.vault = self.enterContext(patch("deployment.action_entrypoint.VaultCLI"))
         self.keys = self.enterContext(patch("deployment.action_entrypoint.ModelKeysCLI"))
         self.builder = self.enterContext(patch("deployment.action_entrypoint.NativePackage.build"))

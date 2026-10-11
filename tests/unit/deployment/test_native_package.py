@@ -1,4 +1,4 @@
-"""Native archives bind compressed assets to exact sources and preserve legacy readers."""
+"""Native archives bind a public commit to exact sources and preserve legacy readers."""
 
 import io
 import json

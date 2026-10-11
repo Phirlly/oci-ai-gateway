@@ -7,6 +7,7 @@ from litellm.llms.custom_httpx.http_handler import AsyncHTTPHandler
 
 from payload_fixture import response_body
 from http_fixture import AsyncBody, complete
+from external_payload_fixture import external_response
 
 
 class NativeUpstream:
@@ -19,6 +20,17 @@ class NativeUpstream:
 
     def reply(self, request):
         self.requests.append(request)
+        if request.url.host == "api.anthropic.com":
+            if self.mode == "context_error":
+                return httpx.Response(400, json={"type": "error", "error": {
+                    "type": "invalid_request_error", "message": "prompt is too long"}})
+            value = external_response(json.loads(request.content).get("stream", False))
+            if isinstance(value, dict):
+                return httpx.Response(200, json=value)
+            body = AsyncBody([("event: " + item["type"] + "\ndata: " + json.dumps(item)
+                               + "\n\n").encode() for item in value])
+            self.bodies.append(body)
+            return httpx.Response(200, stream=body, headers={"content-type": "text/event-stream"})
         if self.mode == "rate_limit":
             return httpx.Response(429, json={"code": "TooManyRequests", "message": "Synthetic limit"},
                                   headers={"retry-after": "7"})

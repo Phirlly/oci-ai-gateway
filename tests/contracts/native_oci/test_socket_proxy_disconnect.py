@@ -12,6 +12,8 @@ from socket_signer_fixture import SocketProxyCase
 
 
 class SocketProxyDisconnect(SocketProxyCase):
+    observe_signing_completion = True
+
     async def assert_disconnected(self, streaming):
         proxy_server.general_settings = {**proxy_server.general_settings, "cancel_on_disconnect": True}
         body = json.dumps({"model": ROUTE, "messages": [{"role": "user", "content": "Synthetic request"}],
@@ -50,7 +52,7 @@ class SocketProxyDisconnect(SocketProxyCase):
                 await self.release_signer()
                 gc.collect()
                 await asyncio.sleep(0.1)
-                self.assertEqual(self.probe.upstream.requests, [])
+                self.assertEqual(self.upstream.requests, [])
                 self.assertEqual([str(item.message) for item in observed
                                   if "was never awaited" in str(item.message)], [])
                 self.assertEqual(task_errors, [])

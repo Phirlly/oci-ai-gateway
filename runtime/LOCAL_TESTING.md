@@ -34,7 +34,8 @@ local edge. Neither suite establishes real account/model access or public TLS.
 The native OCI suite also requires Git. It verifies and patches temporary copies
 of two pinned-image source files, then tests completion, streaming, HTTP cleanup,
 signing cancellation and normal log output in a network-disabled container.
-Its proxy callback is a test fixture; native cloud activation remains pending.
+The production callback is exercised through the real proxy with synthetic
+native OCI and Anthropic responses. Native cloud activation remains pending.
 It needs no OCI credentials or local documentation cache.
 
 ## Image Pulls

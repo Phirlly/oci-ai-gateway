@@ -93,11 +93,14 @@ class ObservedSocketSigner(SocketSigner):
 
 
 class SocketProxyCase(NativeProxyCase):
+    observe_signing_completion = False
+
     async def asyncSetUp(self):
         await super().asyncSetUp()
         self.socket = UnixResponder()
         self.addAsyncCleanup(asyncio.to_thread, self.socket.close)
-        self.probe.oci_signer = ObservedSocketSigner(self.socket.scope, path=self.socket.path, timeout=1)
+        signer_type = ObservedSocketSigner if self.observe_signing_completion else SocketSigner
+        self.probe.oci_signer = signer_type(self.socket.scope, path=self.socket.path, timeout=1)
 
     async def wait_received(self):
         # Allow the proxy's setup budget; the signing transport still has only1s.

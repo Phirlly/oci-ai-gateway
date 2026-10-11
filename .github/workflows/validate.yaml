@@ -88,3 +88,5 @@ jobs:
         run: python -m tests.contracts.runtime
       - name: OCI-compatible and Anthropic adapter contracts
         run: python -m tests.contracts.demo
+      - name: Native OCI adapter and signing transport contracts
+        run: python -m tests.contracts.native_oci

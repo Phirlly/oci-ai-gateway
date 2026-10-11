@@ -1,0 +1,2 @@
+# Unified-diff blank context markers are spaces; patched source is checked separately.
+runtime/litellm_oci.patch text eol=lf whitespace=-blank-at-eol

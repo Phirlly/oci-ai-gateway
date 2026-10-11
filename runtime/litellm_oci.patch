@@ -1,0 +1,240 @@
+--- a/llms/oci/chat/generic.py
++++ b/llms/oci/chat/generic.py
+@@ -240,25 +240,17 @@
+     return new_tools
+ 
+ 
+-def _normalize_oci_finish_reason(raw: str | None) -> str | None:
+-    """Map an OCI-specific finish reason to its OpenAI-standard equivalent.
+-
+-    OCI emits ``COMPLETE`` / ``MAX_TOKENS`` / ``TOOL_CALL(S)`` plus a long tail
+-    of error/cancel reasons (``ERROR``, ``ERROR_TOXIC``, ``ERROR_LIMIT``,
+-    ``USER_CANCEL``, ``CONTENT_FILTERED``, ``CANCELLED``, ...). The OpenAI
+-    spec only defines ``stop`` / ``length`` / ``tool_calls`` / ... — anything
+-    else is collapsed to ``"stop"`` so downstream consumers switching on
+-    ``finish_reason`` keep working. A ``None`` input passes through unchanged.
+-    """
+-    if raw is None:
+-        return None
+-    if raw == "COMPLETE":
+-        return "stop"
+-    if raw == "MAX_TOKENS":
+-        return "length"
+-    if raw in ("TOOL_CALL", "TOOL_CALLS"):
+-        return "tool_calls"
+-    return "stop"
++def _normalize_oci_finish_reason(raw: str | None) -> str | None:
++    """Normalize known terminal reasons; never turn an aborted answer into stop."""
++    if raw is None:
++        return None  # Intermediate deltas need not carry a finish reason.
++    if raw in ("COMPLETE", "STOP", "stop"):
++        return "stop"
++    if raw in ("MAX_TOKENS", "length"):
++        return "length"
++    if raw in ("TOOL_CALL", "TOOL_CALLS", "tool_calls"):
++        return "tool_calls"
++    raise OCIError(status_code=502, message="OCI returned an unsuccessful completion ending.")
+ 
+ 
+ def _synthesize_oci_tool_call_id(position: int, name: str, arguments: str) -> str:
+@@ -324,8 +316,10 @@
+             status_code=raw_response.status_code,
+         )
+ 
+-    response_choice: Final = completion_response.chatResponse.choices[0]
+-    message: Final = model_response.choices[0].message
++    response_choice: Final = completion_response.chatResponse.choices[0]
++    if response_choice.finishReason is None:
++        raise OCIError(status_code=502, message="OCI completion omitted its finish reason.")
++    message: Final = model_response.choices[0].message
+     response_message: Final = response_choice.message
+     if response_message is not None:
+         if response_message.content:
+--- a/llms/oci/chat/transformation.py
++++ b/llms/oci/chat/transformation.py
+@@ -13,6 +13,7 @@
+ from collections.abc import AsyncIterator, Callable, Iterator
+ from typing import TYPE_CHECKING, Any, Final
+ 
++import anyio
+ import httpx
+ 
+ import litellm
+@@ -247,6 +248,11 @@
+ class OCIChatConfig(BaseConfig):
+     """LiteLLM BaseConfig implementation for OCI Generative AI chat."""
+ 
++    @property
++    def uses_async_transform_request(self) -> bool:
++        # Construct inference dispatch only after the async signing wait succeeds.
++        return True
++
+     @property
+     def has_custom_stream_wrapper(self) -> bool:
+         return True
+@@ -658,15 +664,23 @@
+         except httpx.HTTPStatusError as e:
+             raise OCIError(status_code=e.response.status_code, message=e.response.text)
+ 
+-        if response.status_code != 200:
+-            raise OCIError(status_code=response.status_code, message=response.text)
++        try:
++            if response.status_code != 200:
++                raise OCIError(status_code=response.status_code, message=response.text)
+ 
+-        return OCIStreamWrapper(
+-            completion_stream=_iter_sse_events(response.iter_text()),
+-            model=model,
+-            custom_llm_provider=custom_llm_provider,
+-            logging_obj=logging_obj,
+-        )
++            return OCIStreamWrapper(
++                completion_stream=_iter_sse_events(response.iter_text()),
++                model=model,
++                custom_llm_provider=custom_llm_provider,
++                logging_obj=logging_obj,
++                response=response,
++            )
++        except BaseException:
++            try:
++                response.close()
++            except BaseException:
++                pass  # Preserve the original failure, including cancellation.
++            raise
+ 
+     @track_llm_api_timing()
+     async def get_async_custom_stream_wrapper(
+@@ -697,20 +711,91 @@
+         except httpx.HTTPStatusError as e:
+             raise OCIError(status_code=e.response.status_code, message=e.response.text)
+ 
+-        if response.status_code != 200:
+-            raise OCIError(status_code=response.status_code, message=response.text)
++        try:
++            if response.status_code != 200:
++                raise OCIError(status_code=response.status_code, message=response.text)
+ 
+-        return OCIStreamWrapper(
+-            completion_stream=_aiter_sse_events(response.aiter_text()),
+-            model=model,
+-            custom_llm_provider=custom_llm_provider,
+-            logging_obj=logging_obj,
+-        )
++            return OCIStreamWrapper(
++                completion_stream=_aiter_sse_events(response.aiter_text()),
++                model=model,
++                custom_llm_provider=custom_llm_provider,
++                logging_obj=logging_obj,
++                response=response,
++            )
++        except BaseException:
++            with anyio.CancelScope(shield=True):
++                try:
++                    await response.aclose()
++                except BaseException:
++                    pass  # Preserve the original failure, including cancellation.
++            raise
+ 
+     def get_error_class(self, error_message: str, status_code: int, headers: dict | httpx.Headers) -> BaseLLMException:
+         return OCIError(status_code=status_code, message=error_message)
+ 
+ 
++class _OCISyncEvents:
++    """Validate EOF while preserving explicit close, including before first read."""
++
++    def __init__(self, events, require_finish, response=None):
++        self.response = response
++        self.events = iter(events)
++        self.require_finish = require_finish
++        self.closed = False
++
++    def __iter__(self):
++        return self
++
++    def __next__(self):
++        try:
++            return next(self.events)
++        except StopIteration:
++            self.require_finish()
++            raise
++
++    def close(self):
++        if not self.closed:
++            self.closed = True
++            try:
++                close = getattr(self.events, "close", None)
++                if close is not None:
++                    close()
++            finally:
++                if self.response is not None:
++                    self.response.close()
++
++
++class _OCIAsyncEvents:
++    """Async EOF validation and idempotent upstream cleanup."""
++
++    def __init__(self, events, require_finish, response=None):
++        self.response = response
++        self.events = events.__aiter__()
++        self.require_finish = require_finish
++        self.closed = False
++
++    def __aiter__(self):
++        return self
++
++    async def __anext__(self):
++        try:
++            return await self.events.__anext__()
++        except StopAsyncIteration:
++            self.require_finish()
++            raise
++
++    async def aclose(self):
++        if not self.closed:
++            self.closed = True
++            try:
++                close = getattr(self.events, "aclose", None)
++                if close is not None:
++                    await close()
++            finally:
++                if self.response is not None:
++                    await self.response.aclose()
++
++
+ class OCIStreamWrapper(CustomStreamWrapper):
+     """Custom stream wrapper that dispatches OCI SSE chunks to the correct handler."""
+ 
+@@ -723,7 +808,13 @@
+         stream_options: object = None,
+         make_call: Callable[..., object] | None = None,
+         _response_headers: dict[str, object] | None = None,
++        response: httpx.Response | None = None,
+     ) -> None:
++        if completion_stream is not None:
++            if hasattr(completion_stream, "__aiter__"):
++                completion_stream = _OCIAsyncEvents(completion_stream, self._require_finish, response)
++            else:
++                completion_stream = _OCISyncEvents(completion_stream, self._require_finish, response)
+         super().__init__(
+             completion_stream=completion_stream,
+             model=model,
+@@ -744,6 +835,10 @@
+         # single-event case (terminal chunk carries the only copy of the text).
+         self._cohere_text_emitted = False
+ 
++    def _require_finish(self):
++        if self.received_finish_reason is None:
++            raise OCIError(status_code=502, message="OCI stream ended before its finish event.")
++
+     def _emit_chunk(self, parsed: ModelResponseStream) -> ModelResponseStream:
+         for choice in parsed.choices:
+             if getattr(choice.delta, "tool_calls", None):
+@@ -760,6 +855,8 @@
+             raise ValueError(f"Chunk does not start with 'data:': {chunk}")
+         payload: Final = chunk[5:].strip()
+         if payload == "[DONE]":
++            if self.received_finish_reason is None:
++                raise OCIError(status_code=502, message="OCI stream ended before its finish event.")
+             return None
+         try:
+             dict_chunk: Final = json.loads(payload)

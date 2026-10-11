@@ -13,6 +13,7 @@ or additional Python packages are needed.
 ```sh
 python3.12 -m tests.contracts.runtime
 python3.12 -m tests.contracts.demo
+python3.12 -m tests.contracts.native_oci
 ```
 
 For a Podman machine available through the Docker `podman` context:
@@ -29,6 +30,12 @@ The separate demo suite exercises both real pinned provider adapters against
 isolated synthetic HTTP providers, including streaming and rate-limit behavior.
 It runs inside the gateway container; the runtime suite checks the published
 local edge. Neither suite establishes real account/model access or public TLS.
+
+The native OCI suite also requires Git. It verifies and patches temporary copies
+of two pinned-image source files, then tests completion, streaming, HTTP cleanup,
+signing cancellation and normal log output in a network-disabled container.
+Its proxy callback is a test fixture; native cloud activation remains pending.
+It needs no OCI credentials or local documentation cache.
 
 ## Image Pulls
 

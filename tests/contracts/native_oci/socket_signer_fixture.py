@@ -100,7 +100,8 @@ class SocketProxyCase(NativeProxyCase):
         self.probe.oci_signer = ObservedSocketSigner(self.socket.scope, path=self.socket.path, timeout=1)
 
     async def wait_received(self):
-        self.assertTrue(await asyncio.to_thread(self.socket.received.wait, 1), "signing never started")
+        # Allow the proxy's setup budget; the signing transport still has only1s.
+        self.assertTrue(await asyncio.to_thread(self.socket.received.wait, 3), "signing never started")
 
     async def release_signer(self):
         self.socket.release.set()

@@ -4,14 +4,18 @@ Compare an OCI-managed model and Anthropic through LiteLLM Compare, hosted on
 OCI. Terraform runs through OCI Resource Manager; a CPU VM runs the pinned
 LiteLLM, PostgreSQL and Caddy images.
 
-**Development preview.** The complete GitHub deployment is pending live acceptance.
+**Development preview.** The direct Resource Manager package is under validation;
+the deploy button will be published after Console and live-model acceptance.
 
 ## Deploy and demonstrate
 
-1. Follow [setup](SETUP.md) once: one settings file and GitHub environment secrets.
-2. In **Actions → Gateway demo**, choose **Deploy**.
-3. Open the reported Compare URL and sign in with the reported username and your
-   configured password. Select both models and run the [sample](demo/PROMPT.md).
+The primary deployment path is [OCI Resource Manager](RESOURCE_MANAGER.md):
+create the stack, Apply, save your Anthropic key in the created secret, and open
+the deployment status. Setup creates the presenter and runs eight samples.
+After **Ready**, open Compare with the generated presenter credentials, select
+both models and run the [sample](demo/PROMPT.md).
+
+For configured teams, [GitHub Actions](SETUP.md) remains an optional entrypoint:
 
 | Workflow action | Result |
 |---|---|
@@ -25,5 +29,5 @@ both real model routes. Reuse the same deployment for another demonstration.
 OCI supplies hosting, networking, secret delivery, resource automation and managed
 inference; Anthropic supplies the external route.
 
-See [configuration and cleanup](SETUP.md) and
+See [Resource Manager setup and cleanup](RESOURCE_MANAGER.md), [GitHub setup](SETUP.md) and
 [local verification](runtime/LOCAL_TESTING.md). License: [MIT](LICENSE).

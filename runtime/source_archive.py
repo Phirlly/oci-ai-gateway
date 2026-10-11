@@ -19,7 +19,7 @@ def validate_manifest(value):
             or not isinstance(value["repository"], str)
             or re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9-]{0,38}/[A-Za-z0-9][A-Za-z0-9._-]{0,99}", value["repository"]) is None
             or not isinstance(value["commit"], str) or re.fullmatch(r"[a-f0-9]{40}", value["commit"]) is None
-            or not isinstance(value["files"], dict) or not 1 <= len(value["files"]) <= 48):
+            or not isinstance(value["files"], dict) or not 1 <= len(value["files"]) <= 80):
         raise ValueError("Invalid runtime source manifest")
     destinations = set()
     for name, checksum in value["files"].items():

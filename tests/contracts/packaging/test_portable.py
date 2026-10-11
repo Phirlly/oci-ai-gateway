@@ -10,11 +10,27 @@ from pathlib import Path
 
 from deployment.foundation_package import FoundationPackage, GatewayPackage
 from deployment.native_package import NativePackage
+from deployment.console_package import ConsolePackage
 
 ROOT = Path(__file__).resolve().parents[3]
 
 
 class PortablePackageContracts(unittest.TestCase):
+    def test_console_archive_validates_outside_the_checkout(self):
+        package = ConsolePackage.build(ROOT, repository="synthetic/gateway", commit="a" * 40)
+        with tempfile.TemporaryDirectory(prefix="gateway-console-package-") as directory:
+            extracted = Path(directory)
+            with zipfile.ZipFile(io.BytesIO(package.content)) as archive:
+                archive.extractall(extracted)  # Built from the explicit Console package allowlist.
+            self.terraform(extracted, "init", "-backend=false", "-input=false", "-lockfile=readonly",
+                           "-plugin-dir=" + str(ROOT / "infra/.terraform/providers"))
+            self.terraform(extracted, "validate", "-no-color")
+            for group in ("runtime", "demo"):
+                for path in (extracted / group).glob("*.py"):
+                    compile(path.read_text(), path.name, "exec")
+            self.assertFalse((extracted / "docs").exists())
+            self.assertTrue((extracted / "schema.yaml").is_file())
+
     def terraform(self, directory, *arguments):
         binary = os.environ.get("GATEWAY_TERRAFORM_15", str(ROOT / ".cache/terraform/1.5.7/terraform"))
         result = subprocess.run([binary, "-chdir=" + str(directory), *arguments],

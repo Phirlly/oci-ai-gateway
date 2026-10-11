@@ -1,7 +1,7 @@
-# Setup
+# GitHub Actions setup (optional)
 
-Development preview: live GitHub deployment acceptance is pending. Budget for
-Compute, storage, Vault and model usage while testing.
+For direct OCI Console deployment, use [Resource Manager](RESOURCE_MANAGER.md).
+Budget for Compute, storage, Vault and model usage while testing.
 
 ## Prerequisites
 

@@ -41,7 +41,8 @@ locals {
         path        = "/opt/oci-ai-gateway/install_assets.py"
         owner       = "root:root"
         permissions = "0600"
-        content     = file("${path.module}/../runtime/install_assets.py")
+        encoding    = "gz+b64"
+        content     = base64gzip(file("${path.module}/../runtime/install_assets.py"))
       },
       {
         path        = "/etc/oci-ai-gateway.json"

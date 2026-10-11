@@ -1,3 +1,25 @@
+variable "console_image_ocid" {
+  description = "Optional retained regional image selected by the Console root."
+  type        = string
+  default     = null
+  validation {
+    condition     = var.console_image_ocid == null ? true : can(regex("^ocid1\\.image\\.oc1\\.[a-z0-9-]+\\.[a-zA-Z0-9._-]+$", var.console_image_ocid))
+    error_message = "Console image must be an OC1 image OCID."
+  }
+}
+
+variable "console_ad_name" {
+  description = "Optional named availability domain selected by the Console root."
+  type        = string
+  default     = null
+}
+
+variable "console_cloud_init" {
+  description = "Optional nonsecret Console bootstrap; never include credentials."
+  type        = string
+  default     = null
+}
+
 variable "schema_version" {
   description = "Version3 native settings; version2 retained for legacy package validation."
   type        = number

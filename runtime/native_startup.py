@@ -28,9 +28,9 @@ def ensure_native_dependencies():
         _run(["/usr/bin/git", "--version"], "Git verification", 15)
 
 
-def start_native_services(directory):
+def start_native_services(directory, *, compose=NATIVE_COMPOSE):
     ensure_native_dependencies()
-    _run(NATIVE_COMPOSE + ["pull", "--quiet"], "Pinned container download", 600)
+    _run(compose + ["pull", "--quiet"], "Pinned container download", 600)
     name = "gateway-native-export-" + secrets.token_hex(8)
     try:
         exported = _run([
@@ -51,4 +51,4 @@ def start_native_services(directory):
         _run(["/usr/bin/docker", "rm", "--force", name], "Native export cleanup", 30, allow_failure=True)
     _run(["/usr/bin/systemctl", "enable", "--now", "oci-ai-gateway-signing.socket"],
          "Private signing socket activation", 30)
-    _run(NATIVE_COMPOSE + ["up", "-d", "--wait", "--wait-timeout", "180"], "Native gateway startup", 240)
+    _run(compose + ["up", "-d", "--wait", "--wait-timeout", "180"], "Native gateway startup", 240)

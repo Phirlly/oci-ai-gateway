@@ -38,17 +38,23 @@ def runtime_files(bundle):
         config["litellm_settings"] = {"callbacks": ["runtime.oci_gateway_loader.INSTANCE"],
                                       "drop_params": False, "num_retries": 0}
     credentials = {key: value for key, value in bundle.credentials.items() if key != "demo_password"}
-    address = bundle.public_ip
-    caddy = (
+    return {"gateway.json": json.dumps(config, indent=2) + "\n",
+            "gateway-secrets.json": json.dumps(credentials, sort_keys=True),
+            "database-password": bundle.credentials["database_password"], "Caddyfile": caddy_config(bundle.public_ip)}
+
+
+def caddy_config(address, *, console=False):
+    status = ("  handle /deployment-status {\n    root * /srv/gateway-status\n"
+              "    rewrite * /status.json\n    header Cache-Control no-store\n    file_server\n  }\n"
+              "  handle {\n    reverse_proxy gateway:4000 {\n      flush_interval -1\n    }\n  }\n")
+    proxy = "  reverse_proxy gateway:4000 {\n    flush_interval -1\n  }\n"
+    return (
         "{\n  default_sni " + address + "\n}\n\nhttps://" + address + " {\n"
         "  tls {\n    issuer acme {\n"
         "      dir https://acme-v02.api.letsencrypt.org/directory\n"
         "      profile shortlived\n    }\n  }\n"
-        "  reverse_proxy gateway:4000 {\n    flush_interval -1\n  }\n}\n"
+        + (status if console else proxy) + "}\n"
     )
-    return {"gateway.json": json.dumps(config, indent=2) + "\n",
-            "gateway-secrets.json": json.dumps(credentials, sort_keys=True),
-            "database-password": bundle.credentials["database_password"], "Caddyfile": caddy}
 
 
 def write_runtime_files(directory, bundle):

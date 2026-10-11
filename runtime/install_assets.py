@@ -9,6 +9,7 @@ import tempfile
 from pathlib import Path
 
 SPECIAL = {
+    "runtime/systemd/oci-ai-gateway-console-bootstrap.service": "etc/systemd/system/oci-ai-gateway-bootstrap.service",
     "runtime/systemd/oci-ai-gateway-native-bootstrap.service": "etc/systemd/system/oci-ai-gateway-bootstrap.service",
     "runtime/systemd/docker-native.conf": "etc/systemd/system/docker.service.d/10-gateway-guard.conf",
     "runtime/systemd/oci-ai-gateway-signing.service": "etc/systemd/system/oci-ai-gateway-signing.service",
@@ -19,12 +20,16 @@ SPECIAL = {
     "runtime/docker-daemon.json": "etc/docker/daemon.json",
 }
 
+DEMO_ASSETS = frozenset("demo/" + name for name in (
+    "__init__.py", "verification.py", "results.py", "response_errors.py", "retry_policy.py",
+    "samples.py", "support-requests.json", "expected-categories.json"))
+
 
 def asset_destination(name):
     if name in SPECIAL:
         return SPECIAL[name]
-    if re.fullmatch(r"runtime/[a-z_]+\.py", name) or name in {
-            "runtime/compose.cloud.yaml", "runtime/compose.native.yaml",
+    if name in DEMO_ASSETS or re.fullmatch(r"runtime/[a-z_]+\.py", name) or name in {
+            "runtime/compose.cloud.yaml", "runtime/compose.native.yaml", "runtime/compose.console.yaml",
             "runtime/litellm_oci.patch", "runtime/LITELLM_LICENSE"}:
         return "opt/oci-ai-gateway/" + name
     raise ValueError("Unrecognized asset path")
@@ -34,7 +39,7 @@ def install_assets(content, root=Path("/")):
     if not isinstance(content, bytes) or len(content) > 256 * 1024:
         raise ValueError("Invalid asset payload")
     values = json.loads(content)
-    if not isinstance(values, dict) or not 1 <= len(values) <= 48:
+    if not isinstance(values, dict) or not 1 <= len(values) <= 80:
         raise ValueError("Invalid asset manifest")
     destinations = {}
     for name, body in values.items():

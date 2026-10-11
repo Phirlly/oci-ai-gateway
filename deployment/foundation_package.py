@@ -13,6 +13,7 @@ from pathlib import Path
 
 from .credential_errors import DeliveryError
 from .submission_records import digest
+from .package_sources import package_sources
 
 SOURCE_FILES = ('.terraform.lock.hcl', 'identity.tf', 'locals.tf', 'outputs.tf',
                 'providers.tf', 'secrets.tf', 'variables.tf', 'versions.tf')
@@ -98,37 +99,7 @@ class FoundationPackage:
 
     @classmethod
     def _build(cls, directory, files, *, generated=None):
-        directory = Path(directory)
-        stream = io.BytesIO()
-        try:
-            if directory.is_symlink() or not directory.is_dir():
-                raise ValueError
-            contents = {}
-            with zipfile.ZipFile(stream, 'w') as archive:
-                for member, name in files.items():
-                    parent = directory
-                    for component in Path(name).parts[:-1]:
-                        parent = parent / component
-                        if parent.is_symlink() or not parent.is_dir():
-                            raise ValueError
-                    # O_NOFOLLOW checks the opened file, rather than a prior path lookup.
-                    fd = os.open(directory / name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
-                    with os.fdopen(fd, 'rb') as source:
-                        if not stat.S_ISREG(os.fstat(source.fileno()).st_mode):
-                            raise ValueError
-                        content = source.read(MAX_MEMBER_BYTES + 1)
-                    if len(content) > MAX_MEMBER_BYTES:
-                        raise ValueError
-                    contents[member] = content
-                if generated is not None:
-                    contents.update(generated(contents))
-                for member, content in contents.items():
-                    info = zipfile.ZipInfo(member, (2020, 1, 1, 0, 0, 0))
-                    info.external_attr = (stat.S_IFREG | 0o600) << 16
-                    archive.writestr(info, content)
-            return cls(stream.getvalue())
-        except (OSError, ValueError):
-            raise DeliveryError('Required Terraform source files could not be packaged.') from None
+        return cls(package_sources(directory, files, generated=generated))
 
     def verify(self, content):
         if archive_digest(content) != self.digest:

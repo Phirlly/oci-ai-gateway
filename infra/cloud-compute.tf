@@ -15,7 +15,7 @@ data "oci_core_images" "gateway" {
   state          = "AVAILABLE"
   lifecycle {
     postcondition {
-      condition     = length(self.images) == 1
+      condition     = var.console_image_ocid != null || length(self.images) == 1
       error_message = "The exact Ubuntu image must have one AVAILABLE match for the selected shape and region."
     }
   }
@@ -23,7 +23,7 @@ data "oci_core_images" "gateway" {
 
 resource "oci_core_instance" "gateway" {
   compartment_id       = var.compartment_ocid
-  availability_domain  = try(data.oci_identity_availability_domains.gateway.availability_domains[var.availability_domain_number - 1].name, "unavailable")
+  availability_domain  = var.console_ad_name != null ? var.console_ad_name : try(data.oci_identity_availability_domains.gateway.availability_domains[var.availability_domain_number - 1].name, "unavailable")
   display_name         = "${var.deployment_id}-gateway"
   shape                = var.instance_shape
   freeform_tags        = local.ownership_tags
@@ -34,7 +34,7 @@ resource "oci_core_instance" "gateway" {
   }
   source_details {
     source_type             = "image"
-    source_id               = try(data.oci_core_images.gateway.images[0].id, "unavailable")
+    source_id               = var.console_image_ocid != null ? var.console_image_ocid : try(data.oci_core_images.gateway.images[0].id, "unavailable")
     boot_volume_size_in_gbs = tostring(var.boot_volume_size_gbs)
   }
   create_vnic_details {
@@ -45,10 +45,10 @@ resource "oci_core_instance" "gateway" {
   instance_options {
     are_legacy_imds_endpoints_disabled = true
   }
-  metadata = { user_data = var.schema_version == 3 ? base64gzip(local.cloud_init) : base64encode(local.cloud_init) }
+  metadata = { user_data = var.console_cloud_init != null ? base64gzip(var.console_cloud_init) : (var.schema_version == 3 ? base64gzip(local.cloud_init) : base64encode(local.cloud_init)) }
   lifecycle {
     precondition {
-      condition     = var.schema_version != 3 || (var.oci_model_key_ocid == null && var.model_key_ttl_days == null && local.native_source != "")
+      condition     = var.schema_version != 3 || (var.oci_model_key_ocid == null && var.model_key_ttl_days == null && (local.native_source != "" || var.console_cloud_init != null))
       error_message = "Native deployment requires its generated asset package and no model-key binding or TTL."
     }
     precondition {
@@ -56,8 +56,12 @@ resource "oci_core_instance" "gateway" {
       error_message = "Memory must be between1 and64GB per OCPU within the demo limits."
     }
     precondition {
-      condition     = length(var.schema_version == 3 ? base64gzip(local.cloud_init) : base64encode(local.cloud_init)) < (var.schema_version == 3 ? 16000 : 32000)
+      condition     = length(var.console_cloud_init != null ? base64gzip(var.console_cloud_init) : (var.schema_version == 3 ? base64gzip(local.cloud_init) : base64encode(local.cloud_init))) < (var.schema_version == 3 ? 16000 : 32000)
       error_message = "Embedded runtime exceeds OCI's user_data metadata budget."
+    }
+    precondition {
+      condition     = var.console_ad_name == null ? true : contains([for domain in data.oci_identity_availability_domains.gateway.availability_domains : domain.name], var.console_ad_name)
+      error_message = "The selected availability domain must belong to the hosting region."
     }
     precondition {
       condition     = anytrue([for subscription in data.oci_identity_region_subscriptions.tenancy.region_subscriptions : subscription.region_name == var.inference_region && subscription.state == "READY"])
@@ -106,4 +110,15 @@ resource "oci_identity_policy" "native_chat" {
   statements = [
     "Allow any-user to use generative-ai-chat in compartment id ${var.compartment_ocid} where all {request.principal.type='instance', request.instance.id='${oci_core_instance.gateway.id}', target.model.id='${var.oci_model_id}'}"
   ]
+}
+
+# Keep Compute outputs out of outputs.tf: that file also belongs to schema1 archives.
+output "instance_ocid" {
+  value = oci_core_instance.gateway.id
+}
+output "public_ip" {
+  value = oci_core_public_ip.gateway.ip_address
+}
+output "public_ip_ocid" {
+  value = oci_core_public_ip.gateway.id
 }

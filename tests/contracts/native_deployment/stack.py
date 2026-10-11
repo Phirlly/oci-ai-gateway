@@ -2,6 +2,8 @@
 
 import json
 import os
+import subprocess
+import sys
 from types import SimpleNamespace
 
 from runtime.oci_adapter_overlay import prepare_overlay
@@ -12,6 +14,8 @@ from tests.contracts.runtime.stack import GatewayStack, ROOT, docker_command, ru
 
 class NativeStack(GatewayStack):
     def prepare_inputs(self):
+        if sys.platform == "linux" and os.geteuid() != 0:
+            raise RuntimeError("Native Compose contract requires root on Linux to match production config ownership")
         super().prepare_inputs()
         secrets_file = self.directory / "gateway-secrets.json"
         credentials = json.loads(secrets_file.read_text())
@@ -31,6 +35,7 @@ class NativeStack(GatewayStack):
         return self
 
     def start(self):
+        print("Preparing the pinned native overlay...", flush=True)
         prepare_engine()
         exported = run_container(["-m", "runtime.oci_adapter_overlay"])
         if exported.returncode:
@@ -58,6 +63,7 @@ class NativeStack(GatewayStack):
         command = self.command()
         run_command(command + ["config", "--quiet"])
         self.started = True
+        print("Starting production gateway/database services...", flush=True)
         run_command(command + ["pull", "--quiet"], timeout=1200)
         run_command(command + ["up", "-d", "--wait", "--wait-timeout", "180"], timeout=240)
         for network in ("database", "frontend"):
@@ -67,10 +73,13 @@ class NativeStack(GatewayStack):
                 raise RuntimeError("Native contract network permits outbound traffic")
 
     def check_startup(self):
-        return run_command(self.command() + ["exec", "-T", "-e", "PYTHONPATH=/app:/checks",
+        print("Checking production startup, route policy and authentication...", flush=True)
+        result = subprocess.run(self.command() + ["exec", "-T", "-e", "PYTHONPATH=/app:/checks",
             "-e", "PYTHONDONTWRITEBYTECODE=1", "-e", "GATEWAY_TEST_URL=http://127.0.0.1:4000",
             "-e", "GATEWAY_TEST_MASTER_KEY=" + os.environ["GATEWAY_TEST_MASTER_KEY"], "gateway",
             "python3", "-m", "unittest", "tests.contracts.native_deployment.test_startup", "-v"], timeout=45)
+        if result.returncode:
+            raise RuntimeError("Native startup assertions failed")
 
     def command(self):
         return docker_command() + ["compose", "--project-name", self.project, "-f", str(self.manifest)]

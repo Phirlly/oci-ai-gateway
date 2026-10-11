@@ -43,6 +43,9 @@ The native deployment suite starts the production gateway/database Compose
 services with synthetic secrets, the verified overlay and no outbound network or
 published ports. It checks startup, authentication and callback policy from
 inside the container. It does not exercise the host's systemd or OCI identity.
+On Linux, this one suite requires root and access to the local Docker engine to
+match the production root-owned configuration. Ubuntu CI runs
+`sudo -n /usr/bin/python3 -m tests.contracts.native_deployment`.
 
 On Ubuntu with systemd, a local Docker engine and noninteractive sudo, run
 `python3.12 -m tests.contracts.signing_systemd`. It owns uniquely named test units

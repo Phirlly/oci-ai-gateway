@@ -10,9 +10,9 @@ from .gateway_http import GatewayError
 
 MESSAGES = {
     "PREPARING": "Preparing the gateway.",
-    "WAITING_CREDENTIALS": "Save the Anthropic key as the CURRENT plain-text version of the external secret.",
+    "WAITING_CREDENTIALS": "Save each enabled provider's key as its CURRENT plain-text secret version.",
     "WAITING_FRONTEND": "Waiting for trusted public HTTPS and presenter login; confirm the presenter secret contains the current password.",
-    "VERIFYING": "Checking HTTPS, presenter access and eight model samples.",
+    "VERIFYING": "Checking HTTPS, presenter access and samples for the enabled models.",
     "READY": "Last verification passed. Open Compare with the presenter credentials.",
     "FAILED": "One or more samples failed. Check model access, then increase verification_run and Apply.",
     "ERROR": "Setup or verification failed. Check secret contents and service logs; no secrets are shown here.",
@@ -30,7 +30,7 @@ def publish_status(directory, phase, record):
             raise ValueError
         os.chmod(directory, 0o755)
         value = {"status": phase, "message": MESSAGES[phase], "verification_run": record["run"],
-                 "samples_passed": record["passed"], "samples_total": 8,
+                 "samples_passed": record["passed"], "samples_total": record.get("total", 8),
                  "finished_at": record["finished_at"], "meaning": "Last verification result; not continuous health"}
         with tempfile.NamedTemporaryFile(dir=directory, delete=False) as stream:
             temporary = Path(stream.name)

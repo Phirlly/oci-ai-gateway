@@ -47,7 +47,8 @@ def main():
             raise GatewayError("Signing service requires root")
         signal.signal(signal.SIGTERM, _stop)
         settings = load_settings()
-        scope = SigningScope(settings["inference_region"], settings["compartment_ocid"], settings["model_id"])
+        model_id = settings["models"]["oci"] if settings["schema_version"] == 4 else settings["model_id"]
+        scope = SigningScope(settings["inference_region"], settings["compartment_ocid"], model_id)
         signer = InstanceSigner(scope, settings["tenancy_ocid"], settings["region"])
         with activated_listener() as listener:
             return serve(listener, signer)

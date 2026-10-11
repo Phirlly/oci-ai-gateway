@@ -59,9 +59,10 @@ def resolve_runtime_context(client, resources, config):
                 or attachment['vnic-id'] != vnic_id or attachment['compartment-id'] != settings['compartment_ocid']
                 or attachment['lifecycle-state'] != 'ATTACHED'):
             raise ValueError
+        fields = ('presenter_email',) if config.is_optional else ('presenter_email', 'external_provider', 'external_model_id')
         context = {'instance_ocid': instance_id, 'public_ip_ocid': public_id, 'public_ip': public['ip-address'],
-                   **{key: settings[key] for key in ('presenter_email', 'external_provider', 'external_model_id')}}
-        if not valid_runtime_context(context):
+                   **{key: settings[key] for key in fields}}
+        if not valid_runtime_context(context, optional=config.is_optional):
             raise ValueError
         return context
     except (KeyError, TypeError, ValueError, AttributeError):

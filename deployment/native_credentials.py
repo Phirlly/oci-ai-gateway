@@ -10,14 +10,16 @@ from .vault_state import read_version
 
 
 def prepare_native_credentials(delivery, *, runtime_context, external_api_key=None, demo_password=None):
-    if not valid_runtime_context(runtime_context):
+    optional = "models" in delivery.target.identity
+    if not valid_runtime_context(runtime_context, optional=optional):
         raise DeliveryError("Verified native runtime context is required.")
     receipt = delivery.reconcile()
     if receipt.phase == "UNCONFIGURED":
-        value = {"schema_version": 3, "kind": "runtime-bundle",
+        supplied = (external_api_key if isinstance(external_api_key, dict) else {}) if optional else {"external_api_key": external_api_key}
+        value = {"schema_version": 4 if optional else 3, "kind": "runtime-bundle",
                  "identity": dict(delivery.target.identity), "operation_id": secrets.token_hex(16),
                  "runtime": dict(runtime_context), "credentials": {
-                     "external_api_key": external_api_key, "demo_password": demo_password,
+                     **supplied, "demo_password": demo_password,
                      "database_password": secrets.token_hex(24),
                      "gateway_master_key": "sk-" + secrets.token_hex(24),
                      "gateway_salt_key": secrets.token_hex(32)}}

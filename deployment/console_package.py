@@ -13,8 +13,8 @@ from runtime.install_assets import DEMO_ASSETS
 from runtime.source_archive import load_manifest
 from runtime.source_download import download_sources
 
-from .foundation_package import NATIVE_FILES
-from .native_package import SOURCE_EXCLUSIONS
+from .foundation_package import OPTIONAL_FILES
+from .optional_package import OPTIONAL_EXCLUSIONS
 from .package_sources import package_sources
 
 ROOT_FILES = ("main.tf", "providers.tf", "variables.tf", "secrets.tf", "bootstrap.tf", "outputs.tf", "schema.yaml")
@@ -23,7 +23,7 @@ CONSOLE_FILES = (
     "console_state.py", "console_credentials.py", "console_status.py", "console_services.py",
     "compose.console.yaml", "systemd/oci-ai-gateway-console-bootstrap.service",
 )
-FILES = {**{name.replace("foundation/", "gateway/", 1): source for name, source in NATIVE_FILES.items()},
+FILES = {**{name.replace("foundation/", "gateway/", 1): source for name, source in OPTIONAL_FILES.items()},
          **{name: "orm/" + name for name in ROOT_FILES},
          **{"runtime/" + name: "runtime/" + name for name in CONSOLE_FILES},
          **{name: name for name in sorted(DEMO_ASSETS)},
@@ -41,7 +41,7 @@ class ConsolePackage:
             selection = b'source = "../infra"'
             if original.count(selection) != 1:
                 raise ValueError("Console module source changed; inspect the portable rewrite")
-            excluded = SOURCE_EXCLUSIONS | {"runtime/systemd/oci-ai-gateway-native-bootstrap.service"}
+            excluded = OPTIONAL_EXCLUSIONS | {"runtime/systemd/oci-ai-gateway-native-bootstrap.service"}
             manifest = {"schema_version": 1, "repository": repository, "commit": commit,
                         "files": {name: sha256(data).hexdigest() for name, data in contents.items()
                                   if name.startswith(("runtime/", "demo/")) and name not in excluded}}

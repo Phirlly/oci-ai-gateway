@@ -24,7 +24,11 @@ class GatewayActions:
         self.orm, self.journal, self.target, self.package = orm, journal, target, package
         self.compute, self.vault, self.keys, self.progress = compute, vault, keys, progress
         settings = target.config.values
-        self.presenter = Presenter(settings['deployment_id'], settings['presenter_email'], MODEL_ALIASES)
+        aliases = MODEL_ALIASES
+        if target.config.is_optional:
+            from runtime.provider_selection import model_aliases
+            aliases = model_aliases(settings)
+        self.presenter = Presenter(settings['deployment_id'], settings['presenter_email'], aliases)
 
     def _result(self, status, context=None, report=None):
         result = {'status': status, 'ready': bool(report and report['ready']),
@@ -68,7 +72,15 @@ class GatewayActions:
         if not valid_presenter_password(password):
             raise DeliveryError('DEMO_PASSWORD needs12-256 characters with uppercase, lowercase, a number and a symbol.')
         history = self.journal.read(target_identity(self.target.config))
-        if not history and not valid_secret(external_api_key):
+        if self.target.config.is_optional:
+            from runtime.provider_selection import provider_keys
+            from runtime.optional_bundle import valid_credential_value
+            required = provider_keys(self.target.config.values)
+            supplied = external_api_key if isinstance(external_api_key, dict) else {}
+            external_api_key = {key: supplied.get(key) for key in sorted(required)}
+            if not history and any(not valid_credential_value(value) for value in external_api_key.values()):
+                raise DeliveryError('Initial Deploy requires API keys for each enabled external provider before cloud writes.')
+        elif not history and not valid_secret(external_api_key):
             raise DeliveryError('Initial Deploy requires ANTHROPIC_API_KEY before any cloud resources are created.')
         expiry = None
         if not self.target.config.is_native:
@@ -78,7 +90,7 @@ class GatewayActions:
             try:
                 result = advance_handoff(
                     self.orm, self.journal, self.target, self.package, vault=self.vault, keys=self.keys,
-                    compute=self.compute, inference_region=self.target.config.values['inference_region'],
+                    compute=self.compute, inference_region=self.target.config.values.get('inference_region'),
                     external_api_key=external_api_key, demo_password=password, expires_at=expiry)
             except ActivationPending:
                 budget.pause('Waiting for the saved model key to activate')
@@ -124,7 +136,7 @@ class GatewayActions:
         while True:
             result = advance_removal(self.orm, self.journal, self.target, self.package,
                                      vault=self.vault, keys=self.keys,
-                                     inference_region=self.target.config.values['inference_region'])
+                                     inference_region=self.target.config.values.get('inference_region'))
             if result.phase == 'DESTROY':
                 if result.job.state == 'SUCCEEDED':
                     self.package.verify(self.orm.get_job_package(result.job.job_id))

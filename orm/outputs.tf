@@ -9,9 +9,17 @@ output "compare_url" {
 output "presenter_username" {
   value = var.presenter_email
 }
-output "external_key_secret_url" {
-  description = "Create a CURRENT plain-text version containing the Anthropic API key."
-  value       = "https://cloud.oracle.com/security/secrets/${module.gateway.runtime_secret_ocid}?region=${var.region}"
+output "anthropic_key_secret_url" {
+  description = "Only when Anthropic is enabled: save its API key as a CURRENT plain-text secret version."
+  value       = var.enable_anthropic ? "https://cloud.oracle.com/security/secrets/${oci_vault_secret.provider["anthropic"].id}?region=${var.region}" : null
+}
+output "openai_key_secret_url" {
+  description = "Only when OpenAI is enabled: save its API key as a CURRENT plain-text secret version."
+  value       = var.enable_openai ? "https://cloud.oracle.com/security/secrets/${oci_vault_secret.provider["openai"].id}?region=${var.region}" : null
+}
+output "enabled_models" {
+  description = "Only these configured models are available to the presenter and verification."
+  value       = local.models
 }
 output "presenter_password_secret_url" {
   description = "View secret contents and copy the password field; never put it in Terraform."

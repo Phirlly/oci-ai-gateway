@@ -1,4 +1,4 @@
-"""Three synthetic support requests, identical across both configured routes."""
+"""Three synthetic support requests, identical across enabled model routes."""
 
 import json
 import re
@@ -52,3 +52,6 @@ def request_body(sample, model, *, stream=False):
     if stream:
         body.update(stream=True, stream_options={"include_usage": True})
     return body
+def sample_count(models):
+    """Three ordinary examples and one stream per enabled route, from the actual workload."""
+    return len(models) * (len(load_samples()) + 1)

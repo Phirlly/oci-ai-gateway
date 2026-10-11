@@ -13,6 +13,9 @@ from tests.contracts.runtime.stack import GatewayStack, ROOT, docker_command, ru
 
 
 class NativeStack(GatewayStack):
+    compose_files = ("compose.native.yaml",)
+    startup_test = "tests.contracts.native_deployment.test_startup"
+
     def prepare_inputs(self):
         if sys.platform == "linux" and os.geteuid() != 0:
             raise RuntimeError("Native Compose contract requires root on Linux to match production config ownership")
@@ -34,7 +37,7 @@ class NativeStack(GatewayStack):
                               "GATEWAY_SIGNING_DIR": str(signing)})
         return self
 
-    def start(self):
+    def prepare_adapter(self):
         print("Preparing the pinned native overlay...", flush=True)
         prepare_engine()
         exported = run_container(["-m", "runtime.oci_adapter_overlay"])
@@ -45,8 +48,11 @@ class NativeStack(GatewayStack):
             path = self.directory / ("oci-" + module + ".py")
             path.write_text(overlay["llms/oci/chat/" + module + ".py"])
             path.chmod(0o600)
-        config = json.loads(run_command(docker_command() + ["compose", "-f",
-                            str(ROOT / "runtime/compose.native.yaml"), "config", "--format", "json"]))
+    def start(self):
+        self.prepare_adapter()
+        inputs = [item for name in self.compose_files for item in ("-f", str(ROOT / "runtime" / name))]
+        config = json.loads(run_command(docker_command() + ["compose", *inputs, "config", "--format", "json"]))
+        self.check_manifest(config)
         # Only test isolation changes: no public edge, outbound network or published ports.
         del config["services"]["edge"]
         config["networks"]["frontend"]["internal"] = True
@@ -70,14 +76,17 @@ class NativeStack(GatewayStack):
             internal = run_command(docker_command() + ["network", "inspect", self.project + "_" + network,
                                    "--format", "{{.Internal}}"]).strip()
             if internal != "true":
-                raise RuntimeError("Native contract network permits outbound traffic")
+                raise RuntimeError("Startup contract network permits outbound traffic")
+
+    def check_manifest(self, config):
+        pass
 
     def check_startup(self):
         print("Checking production startup, route policy and authentication...", flush=True)
-        result = subprocess.run(self.command() + ["exec", "-T", "-e", "PYTHONPATH=/app:/checks",
+        result = subprocess.run(self.command() + ["exec", "-T", "-e", "PYTHONPATH=/opt/oci-ai-gateway:/app:/checks",
             "-e", "PYTHONDONTWRITEBYTECODE=1", "-e", "GATEWAY_TEST_URL=http://127.0.0.1:4000",
             "-e", "GATEWAY_TEST_MASTER_KEY=" + os.environ["GATEWAY_TEST_MASTER_KEY"], "gateway",
-            "python3", "-m", "unittest", "tests.contracts.native_deployment.test_startup", "-v"], timeout=45)
+            "python3", "-m", "unittest", self.startup_test, "-v"], timeout=45)
         if result.returncode:
             raise RuntimeError("Native startup assertions failed")
 

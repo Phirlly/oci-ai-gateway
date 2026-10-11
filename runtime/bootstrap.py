@@ -22,7 +22,11 @@ STATE = Path("/var/lib/oci-ai-gateway")
 
 def initialize(settings, directory, *, now=None):
     settings = validate_settings(settings)
-    presenter = Presenter(settings["deployment_id"], settings["presenter_email"], MODEL_ALIASES)
+    aliases = MODEL_ALIASES
+    if settings["schema_version"] == 4:
+        from .provider_selection import model_aliases
+        aliases = model_aliases(settings)
+    presenter = Presenter(settings["deployment_id"], settings["presenter_email"], aliases)
     state = PresenterState(directory, presenter)
     saved = state.load()
     if saved is not None and saved["phase"] == "complete":
@@ -32,7 +36,7 @@ def initialize(settings, directory, *, now=None):
     identifier = instance_id(settings)
     bundle = load_bundle(current_content(settings), settings, identifier, now=now)
     write_runtime_files(directory, bundle)
-    if settings["schema_version"] == 3:
+    if settings["schema_version"] == 3 or (settings["schema_version"] == 4 and "oci" in settings["models"]):
         from .native_startup import start_native_services
         start_native_services(directory)
     else:

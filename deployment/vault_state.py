@@ -2,6 +2,7 @@
 
 import base64
 import binascii
+import json
 import time
 from dataclasses import dataclass
 from types import MappingProxyType
@@ -11,18 +12,24 @@ from .credential_identity import valid_identity, valid_ocid
 from .credential_records import MAX_RECORD_BYTES, CredentialRecord, parse_record
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, init=False)
 class VaultTarget:
-    identity: dict
+    _identity_json: str
     vault_ocid: str
     key_ocid: str
 
-    def __post_init__(self):
-        if not valid_identity(self.identity):
+    def __init__(self, identity, vault_ocid, key_ocid):
+        if not valid_identity(identity):
             raise DeliveryError("Invalid deployment identity.")
-        if not valid_ocid(self.vault_ocid, "vault") or not valid_ocid(self.key_ocid, "key"):
+        if not valid_ocid(vault_ocid, "vault") or not valid_ocid(key_ocid, "key"):
             raise DeliveryError("Invalid Vault resource identifiers.")
-        object.__setattr__(self, "identity", MappingProxyType(dict(self.identity)))
+        object.__setattr__(self, "_identity_json", json.dumps(identity, sort_keys=True))
+        object.__setattr__(self, "vault_ocid", vault_ocid)
+        object.__setattr__(self, "key_ocid", key_ocid)
+
+    @property
+    def identity(self):
+        return MappingProxyType(json.loads(self._identity_json))
 
     @property
     def secret_id(self):

@@ -9,6 +9,8 @@ from urllib.parse import quote
 from .gateway_http import GatewayError
 
 FIELDS = {"oci_api_key", "external_api_key", "database_password", "gateway_master_key", "gateway_salt_key"}
+INTERNAL = FIELDS - {"oci_api_key", "external_api_key"}
+PROVIDER_FIELDS = {"anthropic_api_key", "openai_api_key"}
 ENTRYPOINT = "/app/docker/prod_entrypoint.sh"
 
 
@@ -23,7 +25,9 @@ def entry_environment(path):
         if len(raw) > 16384:
             raise ValueError
         values = json.loads(raw)
-        if (not isinstance(values, dict) or set(values) not in (FIELDS, FIELDS - {"oci_api_key"})
+        if (not isinstance(values, dict)
+                or (set(values) not in (FIELDS, FIELDS - {"oci_api_key"})
+                    and not INTERNAL <= set(values) <= INTERNAL | PROVIDER_FIELDS)
                 or any(not isinstance(value, str) or not value
                        or any(ord(c) < 32 or ord(c) == 127 for c in value)
                        for value in values.values())):
@@ -31,10 +35,13 @@ def entry_environment(path):
         environment = {
             "LITELLM_MASTER_KEY": values["gateway_master_key"],
             "LITELLM_SALT_KEY": values["gateway_salt_key"],
-            "ANTHROPIC_API_KEY": values["external_api_key"],
             "DATABASE_URL": "postgresql://gateway:" + quote(values["database_password"], safe="")
                             + "@database:5432/gateway",
         }
+        for field in PROVIDER_FIELDS | {"external_api_key"}:
+            if field in values:
+                name = "ANTHROPIC_API_KEY" if field == "external_api_key" else field.upper()
+                environment[name] = values[field]
         if "oci_api_key" in values:
             environment["OCI_GENAI_API_KEY"] = values["oci_api_key"]
         return environment
@@ -46,7 +53,8 @@ def main():
     try:
         environment = dict(os.environ)
         environment.pop("DEMO_PASSWORD", None)
-        environment.pop("OCI_GENAI_API_KEY", None)
+        for name in ("OCI_GENAI_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY"):
+            environment.pop(name, None)
         environment.update(entry_environment("/run/secrets/gateway.json"))
         os.execve(ENTRYPOINT, [ENTRYPOINT, *sys.argv[1:]], environment)
     except (GatewayError, OSError):

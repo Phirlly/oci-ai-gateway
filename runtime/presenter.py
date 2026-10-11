@@ -13,17 +13,17 @@ from .password_policy import valid_presenter_password
 class Presenter:
     deployment_id: str
     email: str
-    models: tuple[str, str]
+    models: tuple[str, ...]
 
     def __post_init__(self):
         if (not isinstance(self.deployment_id, str)
                 or re.fullmatch(r"[a-z][a-z0-9-]{2,39}", self.deployment_id) is None
                 or not isinstance(self.email, str) or len(self.email) > 255
                 or re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", self.email) is None
-                or not isinstance(self.models, tuple) or len(self.models) != 2
+                or not isinstance(self.models, tuple) or not 1 <= len(self.models) <= 3
                 or any(not isinstance(model, str)
                        or re.fullmatch(r"[a-zA-Z0-9_-]{1,64}", model) is None for model in self.models)
-                or self.models[0] == self.models[1]):
+                or len(set(self.models)) != len(self.models)):
             raise GatewayError("Invalid presenter configuration")
 
     @property

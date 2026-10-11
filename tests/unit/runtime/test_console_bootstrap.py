@@ -11,6 +11,19 @@ from .console_fixture import settings
 
 
 class ConsoleBootstrapTests(unittest.TestCase):
+    def test_optional_active_verification_skips_dependency_preparation(self):
+        from .optional_console_fixture import settings as optional_settings
+        with patch("runtime.console_bootstrap.os.geteuid", return_value=0), \
+                patch("runtime.console_bootstrap.load_config", return_value=optional_settings()), \
+                patch("runtime.console_bootstrap.locked_state"), \
+                patch("runtime.console_bootstrap.read_record", return_value={"phase": "active"}), \
+                patch("runtime.console_bootstrap.ensure_dependencies") as dependencies, \
+                patch("runtime.console_bootstrap.protect_metadata"), \
+                patch("runtime.console_bootstrap.run_console") as run:
+            self.assertEqual(main(), 0)
+            dependencies.assert_not_called()
+            run.assert_called_once()
+
     def test_entrypoint_verifies_private_settings_and_does_not_stop_timer(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

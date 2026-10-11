@@ -62,7 +62,7 @@ jobs:
           terraform_wrapper: false
       - name: Validate deployment compatibility
         run: |
-          python -m deployment.native_package
+          python -m deployment.native_package --optional-providers
           python -m deployment.console_package
           terraform -chdir=infra fmt -check -recursive
           terraform -chdir=infra init -backend=false -input=false -lockfile=readonly
@@ -104,5 +104,7 @@ jobs:
         run: python -m tests.contracts.signing_systemd
       - name: Production native Compose startup
         run: sudo -n /usr/bin/python3 -m tests.contracts.native_deployment
+      - name: Production external-only Compose startup
+        run: sudo -n /usr/bin/python3 -m tests.contracts.optional_deployment
       - name: Independent Console status and mounted key refresh
         run: sudo -n /usr/bin/python3 -m tests.contracts.console

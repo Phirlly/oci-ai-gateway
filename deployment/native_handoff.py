@@ -15,7 +15,7 @@ def advance_native_handoff(client, journal, target, package, *, vault, compute, 
     from .credential_handoff import FoundationHandoff
     settings = target.config.values
     if (vault is None or compute is None or vault.region != settings["region"]
-            or compute.region != settings["region"] or inference_region != settings["inference_region"]):
+            or compute.region != settings["region"] or inference_region != settings.get("inference_region")):
         raise DeliveryError("Native handoff requires the configured hosting and inference regions.")
     stack = ensure_stack(client, journal, target, package)
     if stack.state != "ACTIVE":

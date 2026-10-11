@@ -51,6 +51,11 @@ def vault_target(response, config, stack_id, inference_region):
         'deployment_id': settings['deployment_id'], 'tenancy_ocid': settings['tenancy_ocid'],
         'compartment_ocid': settings['compartment_ocid'], 'stack_ocid': stack_id,
         'secret_ocid': found['oci_vault_secret.runtime'],
-        'inference_region': inference_region, 'model_id': settings['oci_model_id'],
     }
+    if settings.get('schema_version') == 4:
+        identity['models'] = settings['models']
+        if 'oci' in settings['models']:
+            identity['inference_region'] = inference_region
+    else:
+        identity.update(inference_region=inference_region, model_id=settings['oci_model_id'])
     return VaultTarget(identity, found['oci_kms_vault.runtime'], found['oci_kms_key.runtime'])

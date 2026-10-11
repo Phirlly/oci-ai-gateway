@@ -7,7 +7,7 @@ import subprocess
 from dataclasses import dataclass
 
 from .cloud_credentials import OCI
-from .console_settings import is_ocid, validate_console_settings
+from .console_settings import is_ocid, provider_secrets, runtime_settings, validate_console_settings
 from .gateway_http import GatewayError
 
 
@@ -26,11 +26,11 @@ def read_secret(settings, *, secret_id=None, context=False):
         selection = ["get-secret-bundle-by-name", "--vault-id", settings["vault_ocid"],
                      "--secret-name", settings["context_name"]]
     else:
-        if secret_id not in (settings["native"]["secret_ocid"], settings["presenter_secret_ocid"]):
+        if secret_id not in {*provider_secrets(settings).values(), settings["presenter_secret_ocid"]}:
             raise GatewayError("Unrecognized Console secret selection")
         selection = ["get", "--secret-id", secret_id]
     command = [OCI, "--config-file", "/dev/null", "--cli-rc-file", "/dev/null", "--auth", "instance_principal",
-               "--region", settings["native"]["region"], "--output", "json", "--query", "@", "--no-retry",
+               "--region", runtime_settings(settings)["region"], "--output", "json", "--query", "@", "--no-retry",
                "--enable-propagation", "False", "--connection-timeout", "5", "--read-timeout", "20",
                "secrets", "secret-bundle", *selection, "--stage", "CURRENT"]
     environment = {key: value for key, value in os.environ.items()

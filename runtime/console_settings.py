@@ -28,19 +28,38 @@ def is_ocid(value, kind):
 
 def validate_console_settings(value):
     try:
-        if (not isinstance(value, dict) or set(value) != {
-                "schema_version", "native", "vault_ocid", "presenter_secret_ocid", "context_name"}
-                or type(value["schema_version"]) is not int or value["schema_version"] != 1
+        optional = isinstance(value, dict) and value.get("schema_version") == 2
+        runtime_key = "runtime" if optional else "native"
+        fields = {"schema_version", runtime_key, "vault_ocid", "presenter_secret_ocid", "context_name"}
+        if optional:
+            fields.add("provider_secrets")
+        if (not isinstance(value, dict) or set(value) != fields
+                or type(value["schema_version"]) is not int or value["schema_version"] not in (1, 2)
                 or not is_ocid(value["vault_ocid"], "vault")
                 or not is_ocid(value["presenter_secret_ocid"], "vaultsecret")):
             raise ValueError
-        native = validate_settings(value["native"])
-        if (native["schema_version"] != 3 or value["context_name"] != native["deployment_id"] + "-context"
+        native = validate_settings(value[runtime_key])
+        if (native["schema_version"] != (4 if optional else 3) or value["context_name"] != native["deployment_id"] + "-context"
                 or value["presenter_secret_ocid"] == native["secret_ocid"]):
             raise ValueError
-        return {**value, "native": native}
+        if optional:
+            secrets = value["provider_secrets"]
+            if (not isinstance(secrets, dict) or set(secrets) != set(native["models"]) - {"oci"}
+                    or any(not is_ocid(item, "vaultsecret") for item in secrets.values())
+                    or len(set(secrets.values())) != len(secrets)
+                    or set(secrets.values()) & {value["presenter_secret_ocid"], native["secret_ocid"]}):
+                raise ValueError
+        return {**value, runtime_key: native}
     except (ValueError, KeyError, TypeError):
         raise GatewayError("Invalid Console deployment settings") from None
+
+
+def runtime_settings(settings):
+    return settings["runtime" if settings["schema_version"] == 2 else "native"]
+
+
+def provider_secrets(settings):
+    return settings["provider_secrets"] if settings["schema_version"] == 2 else {"anthropic": settings["native"]["secret_ocid"]}
 
 
 def load_context(content, settings, instance_id):

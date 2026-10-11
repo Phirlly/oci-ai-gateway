@@ -33,10 +33,33 @@ variable "inference_region" {
   description = "Optional subscribed inference region; blank uses the hosting region."
   default     = null
 }
-variable "external_model_id" {
+variable "enable_oci" {
+  type        = bool
+  default     = true
+  nullable    = false
+  description = "Enable the OCI Generative AI route. At least one provider must be enabled."
+}
+variable "enable_anthropic" {
+  type        = bool
+  default     = false
+  nullable    = false
+  description = "Optional Anthropic route; requires your Anthropic API key after Apply."
+}
+variable "enable_openai" {
+  type        = bool
+  default     = false
+  nullable    = false
+  description = "Optional OpenAI route; requires your OpenAI API key after Apply."
+}
+variable "anthropic_model_id" {
   type        = string
   description = "Anthropic model accessible with the supplied provider key."
   default     = "claude-sonnet-4-6"
+}
+variable "openai_model_id" {
+  type        = string
+  description = "OpenAI Chat Completions model accessible with your project API key."
+  default     = "gpt-4.1-mini-2025-04-14"
 }
 variable "presenter_email" {
   type        = string

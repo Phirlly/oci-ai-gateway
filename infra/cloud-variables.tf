@@ -20,22 +20,29 @@ variable "console_cloud_init" {
   default     = null
 }
 
+variable "console_mode" {
+  description = "Console root owns individual credential secrets instead of the controller bundle."
+  type        = bool
+  default     = false
+  nullable    = false
+}
+
 variable "schema_version" {
-  description = "Version3 native settings; version2 retained for legacy package validation."
+  description = "Version4 optional providers; versions2/3 retained for original package recovery."
   type        = number
   nullable    = false
   validation {
-    condition     = contains([2, 3], var.schema_version)
-    error_message = "Invalid schema_version; use version3 for new native deployments."
+    condition     = contains([2, 3, 4], var.schema_version)
+    error_message = "Invalid schema_version; use version4 for optional providers."
   }
 }
 
 variable "inference_region" {
   description = "Subscribed OC1 region serving the selected OCI-managed model."
   type        = string
-  nullable    = false
+  default     = null
   validation {
-    condition     = can(regex("^[a-z]{2,}-[a-z0-9-]+-[0-9]+$", var.inference_region))
+    condition     = var.inference_region == null ? true : can(regex("^[a-z]{2,}-[a-z0-9-]+-[0-9]+$", var.inference_region))
     error_message = "Invalid inference_region; use the supported version2 deployment settings."
   }
 }
@@ -43,9 +50,9 @@ variable "inference_region" {
 variable "external_provider" {
   description = "Supported external adapter for this demo."
   type        = string
-  nullable    = false
+  default     = null
   validation {
-    condition     = var.external_provider == "anthropic"
+    condition     = var.external_provider == null || var.external_provider == "anthropic"
     error_message = "Invalid external_provider; use the supported version2 deployment settings."
   }
 }
@@ -53,10 +60,21 @@ variable "external_provider" {
 variable "external_model_id" {
   description = "Exact external model identifier."
   type        = string
+  default     = null
+  validation {
+    condition     = var.external_model_id == null ? true : can(regex("^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$", var.external_model_id))
+    error_message = "Invalid external_model_id; use the supported version2 deployment settings."
+  }
+}
+
+variable "models" {
+  description = "Schema4 only: omit a provider to disable it; one model ID per enabled provider."
+  type        = map(string)
+  default     = {}
   nullable    = false
   validation {
-    condition     = can(regex("^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$", var.external_model_id))
-    error_message = "Invalid external_model_id; use the supported version2 deployment settings."
+    condition     = alltrue([for provider, model in var.models : contains(["oci", "anthropic", "openai"], provider) && can(regex("^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,254}$", model))])
+    error_message = "models accepts only oci, anthropic and openai with nonempty model IDs."
   }
 }
 

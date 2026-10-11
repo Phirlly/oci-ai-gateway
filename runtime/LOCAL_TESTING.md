@@ -15,6 +15,7 @@ python3.12 -m tests.contracts.runtime
 python3.12 -m tests.contracts.demo
 python3.12 -m tests.contracts.native_oci
 python3.12 -m tests.contracts.native_deployment
+python3.12 -m tests.contracts.optional_deployment
 ```
 
 For a Podman machine available through the Docker `podman` context:
@@ -36,7 +37,7 @@ The native OCI suite also requires Git. It verifies and patches temporary copies
 of two pinned-image source files, then tests completion, streaming, HTTP cleanup,
 signing cancellation and normal log output in a network-disabled container.
 The production callback is exercised through the real proxy with synthetic
-native OCI and Anthropic responses. Native cloud activation remains pending.
+native OCI, Anthropic and OpenAI responses. Cloud acceptance remains separate.
 It needs no OCI credentials or local documentation cache.
 
 The native deployment suite starts the production gateway/database Compose
@@ -46,6 +47,10 @@ inside the container. It does not exercise the host's systemd or OCI identity.
 On Linux, this one suite requires root and access to the local Docker engine to
 match the production root-owned configuration. Ubuntu CI runs
 `sudo -n /usr/bin/python3 -m tests.contracts.native_deployment`.
+
+The optional deployment suite checks production external-only Compose startup
+and authentication without native signing mounts. It uses the same isolated
+networking and requires root on Linux for the private configuration contract.
 
 On Ubuntu with systemd, a local Docker engine and noninteractive sudo, run
 `python3.12 -m tests.contracts.signing_systemd`. It owns uniquely named test units

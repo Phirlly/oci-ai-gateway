@@ -2,7 +2,11 @@
 
 import json
 import re
+from copy import deepcopy
 from types import MappingProxyType
+
+from runtime.gateway_http import GatewayError
+from runtime.provider_selection import validate_models
 
 from .credential_errors import DeliveryError
 from .deployment_config import FoundationConfig, PATTERNS
@@ -27,22 +31,42 @@ INTEGER_LIMITS = {
 
 
 class GatewayConfig(FoundationConfig):
+    def __init__(self, values):
+        object.__setattr__(self, "_settings", deepcopy(values))
+        self.__post_init__()
+
+    @property
+    def values(self):
+        """Return a snapshot; callers cannot mutate nested deployment identity."""
+        return MappingProxyType(deepcopy(self._settings))
+
     @property
     def is_native(self):
-        return self.values["schema_version"] == 3
+        return self.values["schema_version"] in (3, 4)
+
+    @property
+    def is_optional(self):
+        return self.values["schema_version"] == 4
 
     def __post_init__(self):
         try:
-            value = self.values
-            native = isinstance(value, dict) and value.get("schema_version") == 3
+            value = deepcopy(self._settings)
+            native = isinstance(value, dict) and value.get("schema_version") in (3, 4)
+            optional = isinstance(value, dict) and value.get("schema_version") == 4
             limits = dict(INTEGER_LIMITS)
+            patterns = PATTERNS | TEXT_PATTERNS
             if native:
-                limits["schema_version"] = (3, 3)
+                limits["schema_version"] = (value["schema_version"], value["schema_version"])
                 del limits["model_key_ttl_days"]
-            if not isinstance(value, dict) or set(value) != set(PATTERNS) | set(TEXT_PATTERNS) | set(limits):
+            if optional:
+                value["models"] = validate_models(value.get("models"))
+                for field in ("oci_model_id", "external_provider", "external_model_id"):
+                    del patterns[field]
+                if "oci" not in value["models"]:
+                    del patterns["inference_region"]
+            if not isinstance(value, dict) or set(value) != set(patterns) | set(limits) | ({"models"} if optional else set()):
                 raise ValueError
-            FoundationConfig({name: value[name] for name in PATTERNS})
-            for name, pattern in TEXT_PATTERNS.items():
+            for name, pattern in patterns.items():
                 item = value[name]
                 if not isinstance(item, str) or len(item) > 255 or re.fullmatch(pattern, item) is None:
                     raise ValueError
@@ -52,13 +76,13 @@ class GatewayConfig(FoundationConfig):
                     raise ValueError
             if not value["instance_ocpus"] <= value["instance_memory_gbs"] <= 64 * value["instance_ocpus"]:
                 raise ValueError
-        except (KeyError, TypeError, ValueError):
-            raise DeliveryError("Invalid gateway settings; use version3 for native deployment or original version2 for recovery.") from None
-        object.__setattr__(self, "values", MappingProxyType(dict(value)))
+        except (KeyError, TypeError, ValueError, GatewayError):
+            raise DeliveryError("Invalid gateway settings; use version4 or retain original version2/3 settings for recovery.") from None
+        object.__setattr__(self, "_settings", dict(value))
 
     def orm_variables(self, *, model_key_ocid):
         if self.is_native and model_key_ocid is not None:
             raise DeliveryError("Native deployment cannot carry a model-key binding.")
         values = super().orm_variables(model_key_ocid=model_key_ocid)
-        return {key: json.dumps(value) if type(value) is int else value
+        return {key: json.dumps(value, sort_keys=True, separators=(",", ":")) if type(value) in (int, dict) else value
                 for key, value in values.items()}

@@ -1,10 +1,10 @@
 variable "schema_version" {
-  description = "Version2 deployment settings."
+  description = "Version3 native settings; version2 retained for legacy package validation."
   type        = number
   nullable    = false
   validation {
-    condition     = var.schema_version == 2
-    error_message = "Invalid schema_version; use the supported version2 deployment settings."
+    condition     = contains([2, 3], var.schema_version)
+    error_message = "Invalid schema_version; use version3 for new native deployments."
   }
 }
 
@@ -109,11 +109,11 @@ variable "image_name" {
 }
 
 variable "model_key_ttl_days" {
-  description = "Controller-managed model key validity in days."
+  description = "Legacy-only model key validity; native settings omit this value."
   type        = number
-  nullable    = false
+  default     = null
   validation {
-    condition     = var.model_key_ttl_days >= 1 && var.model_key_ttl_days <= 30 && floor(var.model_key_ttl_days) == var.model_key_ttl_days
+    condition     = var.model_key_ttl_days == null ? true : (var.model_key_ttl_days >= 1 && var.model_key_ttl_days <= 30 && floor(var.model_key_ttl_days) == var.model_key_ttl_days)
     error_message = "Invalid model_key_ttl_days; use the supported version2 deployment settings."
   }
 }

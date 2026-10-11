@@ -29,6 +29,18 @@ RUNTIME_FILES = (
 GATEWAY_FILES = {**{'foundation/' + name: 'infra/' + name for name in SOURCE_FILES + CLOUD_FILES},
                  **{'runtime/' + name: 'runtime/' + name for name in RUNTIME_FILES}}
 GATEWAY_MEMBERS = frozenset(GATEWAY_FILES)
+NATIVE_RUNTIME_FILES = (
+    'source_archive.py', 'source_download.py', 'source_bootstrap.py',
+    'systemd/oci-ai-gateway-native-bootstrap.service',
+    'compose.native.yaml', 'systemd/docker-native.conf',
+    'native_startup.py', 'oci_adapter_overlay.py', 'oci_gateway_callback.py',
+    'oci_gateway_config.py', 'oci_gateway_loader.py', 'oci_instance_signer.py',
+    'oci_signing_client.py', 'oci_signing_entrypoint.py', 'oci_signing_protocol.py',
+    'oci_signing_scope.py', 'oci_signing_service.py', 'litellm_oci.patch', 'LITELLM_LICENSE',
+    'systemd/oci-ai-gateway-signing.service', 'systemd/oci-ai-gateway-signing.socket',
+)
+NATIVE_FILES = GATEWAY_FILES | {'runtime/' + name: 'runtime/' + name for name in NATIVE_RUNTIME_FILES}
+NATIVE_MEMBERS = frozenset(NATIVE_FILES) | {'runtime/source.json'}
 MAX_ARCHIVE_BYTES = 1024 * 1024
 MAX_MEMBER_BYTES = 256 * 1024
 
@@ -40,7 +52,7 @@ def archive_digest(content):
         with zipfile.ZipFile(io.BytesIO(content)) as archive:
             entries = archive.infolist()
             names = {e.filename for e in entries}
-            if len(entries) != len(names) or names not in (MEMBERS, GATEWAY_MEMBERS):
+            if len(entries) != len(names) or names not in (MEMBERS, GATEWAY_MEMBERS, NATIVE_MEMBERS):
                 raise ValueError
             if sum(e.file_size for e in entries) > MAX_ARCHIVE_BYTES:
                 raise ValueError
@@ -76,16 +88,22 @@ class FoundationPackage:
 
     @property
     def is_gateway(self):
+        return self.schema_version in (2, 3)
+
+    @property
+    def schema_version(self):
         with zipfile.ZipFile(io.BytesIO(self.content)) as archive:
-            return frozenset(archive.namelist()) == GATEWAY_MEMBERS
+            names = frozenset(archive.namelist())
+            return 3 if names == NATIVE_MEMBERS else (2 if names == GATEWAY_MEMBERS else 1)
 
     @classmethod
-    def _build(cls, directory, files):
+    def _build(cls, directory, files, *, generated=None):
         directory = Path(directory)
         stream = io.BytesIO()
         try:
             if directory.is_symlink() or not directory.is_dir():
                 raise ValueError
+            contents = {}
             with zipfile.ZipFile(stream, 'w') as archive:
                 for member, name in files.items():
                     parent = directory
@@ -101,6 +119,10 @@ class FoundationPackage:
                         content = source.read(MAX_MEMBER_BYTES + 1)
                     if len(content) > MAX_MEMBER_BYTES:
                         raise ValueError
+                    contents[member] = content
+                if generated is not None:
+                    contents.update(generated(contents))
+                for member, content in contents.items():
                     info = zipfile.ZipInfo(member, (2020, 1, 1, 0, 0, 0))
                     info.external_attr = (stat.S_IFREG | 0o600) << 16
                     archive.writestr(info, content)

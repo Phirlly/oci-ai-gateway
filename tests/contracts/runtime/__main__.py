@@ -8,7 +8,7 @@ import unittest
 from .stack import GatewayStack
 from .account_fixture import seed_invitation_creator
 
-SUITES = ("configuration", "cloud_configuration", "health", "onboarding", "access", "persistence", "presenter_bootstrap")
+SUITES = ("configuration", "cloud_configuration", "native_configuration", "health", "onboarding", "access", "persistence", "presenter_bootstrap")
 
 
 def interrupted(signum, frame):

@@ -29,6 +29,11 @@ class FoundationHandoff:
 def advance_handoff(client, journal, target, package, *, vault, keys, inference_region,
                     external_api_key=None, demo_password=None, expires_at=None, now=None, compute=None):
     """One serialized controller; creation inputs are ignored when a bundle exists."""
+    if isinstance(target.config, GatewayConfig) and target.config.is_native:
+        from .native_handoff import advance_native_handoff
+        return advance_native_handoff(client, journal, target, package, vault=vault, compute=compute,
+                                      inference_region=inference_region, external_api_key=external_api_key,
+                                      demo_password=demo_password, now=now)
     if (not isinstance(inference_region, str)
             or re.fullmatch(PATTERNS['region'], inference_region) is None
             or keys.region != inference_region

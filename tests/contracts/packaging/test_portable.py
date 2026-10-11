@@ -9,6 +9,7 @@ import zipfile
 from pathlib import Path
 
 from deployment.foundation_package import FoundationPackage, GatewayPackage
+from deployment.native_package import NativePackage
 
 ROOT = Path(__file__).resolve().parents[3]
 
@@ -23,7 +24,8 @@ class PortablePackageContracts(unittest.TestCase):
         return result.stdout
 
     def test_legacy_and_gateway_archives_are_self_contained(self):
-        for package in (FoundationPackage.build(ROOT / "infra"), GatewayPackage.build(ROOT)):
+        for package in (FoundationPackage.build(ROOT / "infra"), GatewayPackage.build(ROOT),
+                        NativePackage.build(ROOT, repository="synthetic/gateway", commit="a" * 40)):
             with self.subTest(gateway=package.is_gateway), tempfile.TemporaryDirectory(prefix="gateway-package-") as directory:
                 extracted = Path(directory)
                 with zipfile.ZipFile(io.BytesIO(package.content)) as archive:

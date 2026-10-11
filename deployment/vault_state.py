@@ -182,7 +182,10 @@ def read_staged(client, target, now):
         raise DeliveryError("Conflicting pending credential records require explicit recovery.")
     runtime = [version for version in versions if version.record.kind == "runtime-bundle"]
     intent = [version for version in versions if version.record.kind == "creation-intent"]
-    if runtime and (not intent or runtime[0].record.expires_at != intent[0].record.expires_at
+    if runtime and runtime[0].record.is_native:
+        if intent:
+            raise DeliveryError("Native credentials cannot share a legacy key-creation intent.")
+    elif runtime and (not intent or runtime[0].record.expires_at != intent[0].record.expires_at
                     or runtime[0].record.runtime_context != intent[0].record.runtime_context):
         raise DeliveryError("Pending runtime credentials require a matching durable intent.")
     return versions

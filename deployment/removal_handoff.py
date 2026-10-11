@@ -62,7 +62,8 @@ def advance_removal(client, journal, target, package, *, vault, keys, inference_
         base_hash = apply_request_hash(stack_id, target.config.orm_variables(model_key_ocid=None), package.digest)
         base = latest_applies(intents).get(base_hash)
         successful = base is not None and jobs[base.operation_id].state == 'SUCCEEDED'
-        if successful:
+        native = target.config.values.get('schema_version') == 3
+        if successful and not native:
             if vault is None or keys is None or vault.region != target.config.values['region']:
                 raise DeliveryError('Owned credential history requires the hosting Vault and inference key clients.')
             job = jobs[base.operation_id]
@@ -75,7 +76,8 @@ def advance_removal(client, journal, target, package, *, vault, keys, inference_
                 return RemovalProgress('KEY_DELETION_PENDING', stack_id)
         elif stack.model_key_ocid is not None or any(job.model_key_ocid is not None for job in jobs.values()):
             raise DeliveryError('A derived key binding without a successful base needs explicit recovery.')
-        # No successful base means this controller could never prepare credentials.
+        # Native has no generated inference keys; its secrets are Terraform-owned.
+        # No successful legacy base means it could never prepare credentials.
         _record(journal, scope, intents, 'cleanup-complete', complete_hash, package.digest)
     job = ensure_destroy(client, journal, target, package, stack_id)
     return RemovalProgress('DESTROY', stack_id, job)

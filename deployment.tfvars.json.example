@@ -1,10 +1,10 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "tenancy_ocid": "REPLACE_WITH_OC1_TENANCY_OCID",
   "compartment_ocid": "REPLACE_WITH_OC1_COMPARTMENT_OCID",
   "region": "us-ashburn-1",
   "deployment_id": "gateway-demo",
-  "oci_model_id": "xai.grok-4.20-0309-non-reasoning",
+  "oci_model_id": "google.gemini-2.5-flash-lite",
   "inference_region": "us-ashburn-1",
   "external_provider": "anthropic",
   "external_model_id": "claude-sonnet-4-6",
@@ -14,6 +14,5 @@
   "instance_memory_gbs": 16,
   "boot_volume_size_gbs": 80,
   "availability_domain_number": 1,
-  "image_name": "Canonical-Ubuntu-24.04-2026.09.18-0",
-  "model_key_ttl_days": 7
+  "image_name": "Canonical-Ubuntu-24.04-2026.09.18-0"
 }

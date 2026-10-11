@@ -1,4 +1,4 @@
-"""Validate the VM's CURRENT v2 bundle independently of deployment orchestration."""
+"""Validate the VM's CURRENT bundle independently of deployment orchestration."""
 
 import json
 import re
@@ -59,7 +59,7 @@ def _unique(pairs):
 
 def validate_settings(value):
     if (not isinstance(value, dict) or set(value) != {"schema_version", *SETTINGS_PATTERNS}
-            or type(value.get("schema_version")) is not int or value["schema_version"] != 1
+            or type(value.get("schema_version")) is not int or value["schema_version"] not in (1, 3)
             or any(not isinstance(value[key], str) or len(value[key]) > 512
                    or not _matches(value[key], pattern) for key, pattern in SETTINGS_PATTERNS.items())):
         raise GatewayError("Invalid runtime deployment settings")
@@ -90,21 +90,26 @@ def load_bundle(content, settings, instance_id, *, now=None):
         if not isinstance(content, bytes) or len(content) > 16384:
             raise ValueError
         value = json.loads(content, object_pairs_hook=_unique)
-        if (not isinstance(value, dict) or set(value) != {
-                "schema_version", "kind", "identity", "operation_id", "expires_at",
-                "model_key_ocid", "runtime", "credentials"}
-                or type(value["schema_version"]) is not int or value["schema_version"] != 2
-                or value["kind"] != "runtime-bundle" or not _matches(value["operation_id"], r"[a-f0-9]{32}")
-                or not _ocid(value["model_key_ocid"], "generativeaiapikey")
-                or not _matches(value["expires_at"], r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ")):
+        native = settings["schema_version"] == 3
+        fields = {"schema_version", "kind", "identity", "operation_id", "runtime", "credentials"}
+        if not native:
+            fields |= {"expires_at", "model_key_ocid"}
+        if (not isinstance(value, dict) or set(value) != fields
+                or type(value["schema_version"]) is not int or value["schema_version"] != (3 if native else 2)
+                or value["kind"] != "runtime-bundle" or not _matches(value["operation_id"], r"[a-f0-9]{32}")):
             raise ValueError
-        expiry = datetime.fromisoformat(value["expires_at"].replace("Z", "+00:00"))
-        current = now if now is not None else datetime.now(timezone.utc)
-        if current.tzinfo is None or expiry <= current:
-            raise ValueError
+        if not native:
+            if (not _ocid(value["model_key_ocid"], "generativeaiapikey")
+                    or not _matches(value["expires_at"], r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ")):
+                raise ValueError
+            expiry = datetime.fromisoformat(value["expires_at"].replace("Z", "+00:00"))
+            current = now if now is not None else datetime.now(timezone.utc)
+            if current.tzinfo is None or expiry <= current:
+                raise ValueError
         public_ip = _validate_owner(value, settings, instance_id)
         credentials = value["credentials"]
-        if (not isinstance(credentials, dict) or set(credentials) != CREDENTIAL_FIELDS
+        expected = CREDENTIAL_FIELDS - {"oci_api_key"} if native else CREDENTIAL_FIELDS
+        if (not isinstance(credentials, dict) or set(credentials) != expected
                 or any(not isinstance(item, str) or not 0 < len(item) <= 8192
                        or any(ord(c) < 32 or ord(c) == 127 for c in item)
                        for item in credentials.values())

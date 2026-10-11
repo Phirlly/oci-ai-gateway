@@ -4,9 +4,6 @@ mock_provider "oci" {
   mock_data "oci_core_image" {
     defaults = { display_name = "Canonical-Ubuntu-24.04-2026.09.18-0", operating_system = "Canonical Ubuntu", operating_system_version = "24.04" }
   }
-  mock_resource "oci_core_public_ip" {
-    defaults = { id = "ocid1.publicip.oc1.iad.synthetic", ip_address = "8.8.4.4" }
-  }
 }
 mock_provider "oci" {
   alias           = "home"
@@ -23,22 +20,21 @@ variables {
   external_model_id   = "synthetic-external"
   presenter_email     = "presenter@example.invalid"
 }
-run "standalone_context_graph_and_secret_isolation" {
+run "console_context_credentials_and_outputs" {
   command = plan
-  override_resource {
-    target          = module.gateway.oci_kms_vault.runtime
-    override_during = plan
-    values          = { id = "ocid1.vault.oc1.iad.synthetic", management_endpoint = "https://example.invalid" }
-  }
-  override_resource {
-    target          = module.gateway.oci_kms_key.runtime
-    override_during = plan
-    values          = { id = "ocid1.key.oc1.iad.synthetic" }
-  }
-  override_resource {
-    target          = module.gateway.oci_vault_secret.runtime
-    override_during = plan
-    values          = { id = "ocid1.vaultsecret.oc1.iad.external" }
+  # infra has its own provider configurations and separate mock-plan suite.
+  # This tests the Console boundary; composed validate checks the real graph.
+  override_module {
+    target = module.gateway
+    outputs = {
+      home_region         = "us-ashburn-1"
+      runtime_vault_ocid  = "ocid1.vault.oc1.iad.synthetic"
+      runtime_key_ocid    = "ocid1.key.oc1.iad.synthetic"
+      runtime_secret_ocid = "ocid1.vaultsecret.oc1.iad.external"
+      instance_ocid       = "ocid1.instance.oc1.iad.synthetic"
+      public_ip           = "8.8.4.4"
+      public_ip_ocid      = "ocid1.publicip.oc1.iad.synthetic"
+    }
   }
   override_resource {
     target          = oci_vault_secret.presenter
@@ -49,32 +45,6 @@ run "standalone_context_graph_and_secret_isolation" {
     target          = oci_vault_secret.context
     override_during = plan
     values          = { id = "ocid1.vaultsecret.oc1.iad.context" }
-  }
-  override_data {
-    target = module.gateway.data.oci_identity_availability_domains.gateway
-    values = { availability_domains = [{ name = "synthetic:US-ASHBURN-AD-1" }] }
-  }
-  override_data {
-    target = module.gateway.data.oci_identity_region_subscriptions.tenancy
-    values = { region_subscriptions = [{ region_name = "us-ashburn-1", region_key = "IAD", is_home_region = true, state = "READY" }] }
-  }
-  override_data {
-    target = module.gateway.data.oci_core_images.gateway
-    values = { images = [{ id = "ocid1.image.oc1.iad.retained" }] }
-  }
-  override_resource {
-    target          = module.gateway.oci_core_instance.gateway
-    override_during = plan
-    values          = { id = "ocid1.instance.oc1.iad.synthetic", private_ip = "10.42.0.2" }
-  }
-  override_resource {
-    target          = module.gateway.oci_core_public_ip.gateway
-    override_during = plan
-    values          = { id = "ocid1.publicip.oc1.iad.synthetic", ip_address = "8.8.4.4" }
-  }
-  override_data {
-    target = module.gateway.data.oci_core_private_ips.gateway
-    values = { private_ips = [{ id = "ocid1.privateip.oc1.iad.synthetic", is_primary = true, ip_address = "10.42.0.2" }] }
   }
   assert {
     condition     = var.oci_model_id == jsondecode(file("../deployment.tfvars.json.example")).oci_model_id

@@ -44,10 +44,14 @@ class StatusEdge(GatewayStack):
 
     def check(self):
         self.started = True
+        print("Pulling the pinned status image...", flush=True)
         run_command(self.command() + ["pull", "--quiet", "edge"], timeout=600)
+        print("Starting the independent status edge...", flush=True)
         run_command(self.command() + ["up", "-d", "--no-deps", "edge"], timeout=60)
+        print("Checking status service isolation...", flush=True)
         if len(run_command(self.command() + ["ps", "--quiet"]).strip().splitlines()) != 1:
             raise RuntimeError("Status startup unexpectedly started another service")
+        print("Resolving the status loopback port...", flush=True)
         address = run_command(self.command() + ["port", "edge", "8080"]).strip()
         if not address.startswith("127.0.0.1:"):
             raise RuntimeError("Status contract must use loopback only")

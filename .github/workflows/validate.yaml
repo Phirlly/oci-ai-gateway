@@ -72,6 +72,9 @@ jobs:
           terraform -chdir=orm validate
       - name: Offline infrastructure plans
         if: matrix.terraform == '1.16.4'
+        env:
+          OCI_CONFIG_FILE_PROFILE: GATEWAY_OFFLINE_NO_PROFILE
+          TF_VAR_config_file_profile: GATEWAY_OFFLINE_NO_PROFILE
         run: |
           terraform -chdir=infra test
           terraform -chdir=orm test
@@ -79,7 +82,7 @@ jobs:
         if: matrix.terraform == '1.5.7'
         env:
           GATEWAY_TERRAFORM_15: terraform
-        run: python -m unittest tests.contracts.packaging.test_portable -v
+        run: python -m unittest discover -s tests/contracts/packaging -t . -v
 
   runtime:
     runs-on: ubuntu-24.04

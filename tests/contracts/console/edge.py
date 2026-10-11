@@ -27,7 +27,7 @@ class StatusEdge(GatewayStack):
                             "-f", str(ROOT / "runtime/compose.console.yaml"), "config", "--format", "json"]))
         config["services"]["edge"]["ports"] = [{"host_ip": "127.0.0.1", "target": 8080, "published": "0", "protocol": "tcp"}]
         for name, network in config["networks"].items():
-            network.update(name=self.project + "_" + name, internal=True)
+            network["name"] = self.project + "_" + name
         for name, volume in config["volumes"].items():
             volume["name"] = self.project + "_" + name
         mounts = config["services"]["edge"]["volumes"]

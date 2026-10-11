@@ -26,6 +26,7 @@ jobs:
           python -m unittest discover -s tests/unit -t . -v
           python -m unittest discover -s tests/contracts/deployment -t . -v
           python -m unittest discover -s tests/contracts/http -t . -v
+          python -m unittest discover -s tests/contracts/signing_socket -t . -v
           python -m compileall -q deployment runtime demo tests
           git diff --check
       - name: Offline OCI signing and refresh contracts

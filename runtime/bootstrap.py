@@ -32,7 +32,11 @@ def initialize(settings, directory, *, now=None):
     identifier = instance_id(settings)
     bundle = load_bundle(current_content(settings), settings, identifier, now=now)
     write_runtime_files(directory, bundle)
-    start_services()
+    if settings["schema_version"] == 3:
+        from .native_startup import start_native_services
+        start_native_services(directory)
+    else:
+        start_services()
     public = GatewayHTTP("http://127.0.0.1:4000", allow_loopback=True)
     admin = GatewayHTTP(public.base_url, bundle.credentials["gateway_master_key"], allow_loopback=True)
     initialize_presenter(PresenterAPI(admin, public), state, presenter, bundle.credentials["demo_password"])

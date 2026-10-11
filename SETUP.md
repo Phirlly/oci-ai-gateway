@@ -5,21 +5,24 @@ Compute, storage, Vault and model usage while testing.
 
 ## Prerequisites
 
-- An owned GitHub repository with Actions enabled. Fork this repository or reuse
-  a configured team repository. Deploy only reviewed code.
+- An owned public GitHub repository with Actions enabled. Fork this repository or
+  reuse a configured team repository. Deploy only reviewed, pushed commits.
+  Keep the repository and deployed commit available during setup: the VM downloads
+  that exact source and verifies every runtime file against its retained hashes.
 - An OCI OC1 tenancy, existing compartment and subscribed hosting/inference
   regions. The selected image, shape and model must be available with capacity.
 - An OCI signing identity permitted to manage Resource Manager, Compute/network,
-  Vault/keys/secrets and Generative AI API keys in that compartment; read regional
+  Vault/keys/secrets in that compartment; read regional
   metadata; and create the package's IAM policies in the tenancy home region.
   Your administrator must grant these permissions before deployment.
   [Resource Manager permissions](https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/resourcemanagerpolicyreference.htm)
-  and [model-key permissions](https://docs.oracle.com/en-us/iaas/Content/generative-ai/api-key-permissions.htm)
+  and [native inference permissions](https://docs.oracle.com/en-us/iaas/Content/generative-ai/chat-permissions.htm)
   describe the service requirements.
 - An Anthropic account/key with access to the configured external model.
 
-The workflow creates the VM/network, reserved public IP, Vault/secret and model
-key. No pre-existing hostname, DNS record or Vault is required. Public ports 80/443
+The workflow creates the VM/network, reserved public IP, Vault/secret and scoped
+instance permissions. The host signs OCI inference requests with its instance
+identity; no OCI model API key is needed. Public ports 80/443
 support HTTPS and certificate issuance; gateway/database ports stay private.
 
 ## Configure once
@@ -92,10 +95,8 @@ Inspect workflow and Resource Manager status before rerunning after an interrupt
 
 Vault reads wait briefly for new versions and in-progress updates. A confirmed
 ETag rejection of credential staging permits up to three attempts, each after
-ownership and saved-state checks. Uncertain writes and model-key creation are
-not replayed. If credential verification still fails,
-retain the saved state and reconcile it before another Deploy. Fresh-creation
-handoff errors distinguish intent verification from failures after model-key creation.
+ownership and saved-state checks. Uncertain writes are not replayed. If credential
+verification still fails, retain the saved state before another Deploy.
 Failed runs log any verified OCI HTTP status and recognized service error code;
 request contents and detailed error payloads remain suppressed.
 
@@ -105,12 +106,13 @@ request contents and detailed error payloads remain suppressed.
   Its original package/settings and credentials are preserved on reruns.
 - To change regions, models, image, size or presenter identity, remove the old
   deployment and use a new deployment ID. Do not edit recovery history or stack
-  variables manually. Model credentials expire after `model_key_ttl_days`; create
-  a new deployment for a later demo beyond that window.
+  variables manually. Native instance credentials refresh automatically; external
+  API credentials remain subject to their provider's account policy.
 - If the presenter changes their password, update `DEMO_PASSWORD` for verification.
   Deploy does not reset an initialized account.
-- The supported routes are OCI's OpenAI-compatible bearer endpoint and Anthropic's
-  native adapter. An `OPENAI_API_KEY` secret alone does not add an OpenAI route.
+- The supported routes are OCI's native Chat API and Anthropic's native adapter.
+  The example uses Gemini Flash-Lite through OCI; that model is hosted by Google.
+  An `OPENAI_API_KEY` secret alone does not add an OpenAI route.
   Changing providers requires a reviewed adapter/configuration change and tests.
 - Sample requests and expected categories are separate files under `demo/`.
   Add synthetic workloads there; do not submit customer data for this demo.
@@ -121,7 +123,8 @@ Choose **Remove** with the same configuration and OCI signing identity. Cleanup
 uses OCI APIs and Resource Manager, so it works when the VM is stopped or
 unreachable. Provider keys and presenter login are not required.
 
-Removal deletes owned model keys and destroys managed infrastructure. Resource
+Removal destroys managed infrastructure. Legacy version2 deployments also remove
+their owned model keys and require the corresponding OCI permission. Resource
 Manager stack/state, GitHub recovery records and scheduled Vault/secret deletion
 may remain. The supplied compartment, OCI identity and Anthropic account/key are
 preserved. Keep recovery records until cleanup is confirmed. If deletion evidence
@@ -129,6 +132,11 @@ is ambiguous after an interruption, automation stops for reconciliation instead
 of reporting success.
 Resume interrupted removal with the current controller; do not downgrade it
 after cleanup has started.
+
+Existing version2 deployments retain their original settings and package for
+Status, Verify and Remove. Use version3 and a fresh deployment ID for native
+signing; do not change the schema of an existing deployment. No model-key TTL
+setting is used in version3.
 
 This single-VM demonstration does not provide high availability, automated
 credential rotation or production backup/restore.

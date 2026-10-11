@@ -14,8 +14,9 @@ def submission_scope(client, journal, target, package):
             or journal.controller_id != target.controller_id
             or not isinstance(package, FoundationPackage)):
         raise DeliveryError('Submission controller, region or package is inconsistent.')
-    if isinstance(target.config, GatewayConfig) != package.is_gateway:
-        raise DeliveryError('Deployment settings and package format must both be legacy foundation or full gateway.')
+    expected = target.config.values['schema_version'] if isinstance(target.config, GatewayConfig) else 1
+    if expected != package.schema_version:
+        raise DeliveryError('Deployment settings and original package schema must match.')
     return target_identity(target.config)
 
 

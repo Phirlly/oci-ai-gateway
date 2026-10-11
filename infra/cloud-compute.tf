@@ -45,14 +45,18 @@ resource "oci_core_instance" "gateway" {
   instance_options {
     are_legacy_imds_endpoints_disabled = true
   }
-  metadata = { user_data = base64encode(local.cloud_init) }
+  metadata = { user_data = var.schema_version == 3 ? base64gzip(local.cloud_init) : base64encode(local.cloud_init) }
   lifecycle {
+    precondition {
+      condition     = var.schema_version != 3 || (var.oci_model_key_ocid == null && var.model_key_ttl_days == null && local.native_source != "")
+      error_message = "Native deployment requires its generated asset package and no model-key binding or TTL."
+    }
     precondition {
       condition     = var.instance_memory_gbs >= var.instance_ocpus && var.instance_memory_gbs <= 64 * var.instance_ocpus
       error_message = "Memory must be between1 and64GB per OCPU within the demo limits."
     }
     precondition {
-      condition     = length(base64encode(local.cloud_init)) < 32000
+      condition     = length(var.schema_version == 3 ? base64gzip(local.cloud_init) : base64encode(local.cloud_init)) < (var.schema_version == 3 ? 16000 : 32000)
       error_message = "Embedded runtime exceeds OCI's user_data metadata budget."
     }
     precondition {
@@ -89,5 +93,17 @@ resource "oci_identity_policy" "runtime_bundle" {
   freeform_tags  = local.ownership_tags
   statements = [
     "Allow any-user to read secret-bundles in compartment id ${var.compartment_ocid} where all {request.principal.type='instance', request.instance.id='${oci_core_instance.gateway.id}', target.secret.id='${oci_vault_secret.runtime.id}', request.operation='GetSecretBundle'}"
+  ]
+}
+
+resource "oci_identity_policy" "native_chat" {
+  count          = var.schema_version == 3 ? 1 : 0
+  provider       = oci.home
+  compartment_id = var.compartment_ocid
+  name           = "${var.deployment_id}-native-chat"
+  description    = "This instance may call only the configured native Chat model."
+  freeform_tags  = local.ownership_tags
+  statements = [
+    "Allow any-user to use generative-ai-chat in compartment id ${var.compartment_ocid} where all {request.principal.type='instance', request.instance.id='${oci_core_instance.gateway.id}', target.model.id='${var.oci_model_id}'}"
   ]
 }

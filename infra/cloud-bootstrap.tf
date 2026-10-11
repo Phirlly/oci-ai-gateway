@@ -9,7 +9,7 @@ locals {
     "runtime/systemd/oci-ai-gateway-bootstrap.timer",
   ]
   runtime_settings = {
-    schema_version    = 1
+    schema_version    = var.schema_version == 3 ? 3 : 1
     deployment_id     = var.deployment_id
     tenancy_ocid      = var.tenancy_ocid
     compartment_ocid  = var.compartment_ocid
@@ -21,14 +21,21 @@ locals {
     external_provider = var.external_provider
     external_model_id = var.external_model_id
   }
+  native_bootstrap_assets = [
+    "runtime/__init__.py", "runtime/install_assets.py", "runtime/gateway_http.py",
+    "runtime/source_archive.py", "runtime/source_download.py", "runtime/source_bootstrap.py",
+    "runtime/systemd/oci-ai-gateway-native-bootstrap.service",
+    "runtime/systemd/oci-ai-gateway-bootstrap.timer",
+  ]
+  native_source = fileexists("${path.module}/../runtime/source.json") ? file("${path.module}/../runtime/source.json") : ""
   cloud_init = "#cloud-config\n${yamlencode({
-    write_files = [
+    write_files = concat([
       {
         path        = "/opt/oci-ai-gateway/assets.json"
         owner       = "root:root"
         permissions = "0600"
         encoding    = "gz+b64"
-        content     = base64gzip(jsonencode({ for name in local.runtime_assets : name => file("${path.module}/../${name}") }))
+        content     = base64gzip(jsonencode({ for name in(var.schema_version == 3 ? local.native_bootstrap_assets : local.runtime_assets) : name => file("${path.module}/../${name}") }))
       },
       {
         path        = "/opt/oci-ai-gateway/install_assets.py"
@@ -42,7 +49,12 @@ locals {
         permissions = "0600"
         content     = jsonencode(local.runtime_settings)
       },
-    ]
+      ], var.schema_version == 3 ? [{
+        path        = "/etc/oci-ai-gateway-source.json"
+        owner       = "root:root"
+        permissions = "0600"
+        content     = local.native_source
+    }] : [])
     runcmd = [
       "set -eu",
       ["/usr/bin/python3", "/opt/oci-ai-gateway/install_assets.py"],

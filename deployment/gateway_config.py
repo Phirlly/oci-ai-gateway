@@ -27,27 +27,38 @@ INTEGER_LIMITS = {
 
 
 class GatewayConfig(FoundationConfig):
+    @property
+    def is_native(self):
+        return self.values["schema_version"] == 3
+
     def __post_init__(self):
         try:
             value = self.values
-            if not isinstance(value, dict) or set(value) != set(PATTERNS) | set(TEXT_PATTERNS) | set(INTEGER_LIMITS):
+            native = isinstance(value, dict) and value.get("schema_version") == 3
+            limits = dict(INTEGER_LIMITS)
+            if native:
+                limits["schema_version"] = (3, 3)
+                del limits["model_key_ttl_days"]
+            if not isinstance(value, dict) or set(value) != set(PATTERNS) | set(TEXT_PATTERNS) | set(limits):
                 raise ValueError
             FoundationConfig({name: value[name] for name in PATTERNS})
             for name, pattern in TEXT_PATTERNS.items():
                 item = value[name]
                 if not isinstance(item, str) or len(item) > 255 or re.fullmatch(pattern, item) is None:
                     raise ValueError
-            for name, (low, high) in INTEGER_LIMITS.items():
+            for name, (low, high) in limits.items():
                 item = value[name]
                 if type(item) is not int or not low <= item <= high:
                     raise ValueError
             if not value["instance_ocpus"] <= value["instance_memory_gbs"] <= 64 * value["instance_ocpus"]:
                 raise ValueError
         except (KeyError, TypeError, ValueError):
-            raise DeliveryError("Invalid gateway settings; check the complete version2 example and supported bounds.") from None
+            raise DeliveryError("Invalid gateway settings; use version3 for native deployment or original version2 for recovery.") from None
         object.__setattr__(self, "values", MappingProxyType(dict(value)))
 
     def orm_variables(self, *, model_key_ocid):
+        if self.is_native and model_key_ocid is not None:
+            raise DeliveryError("Native deployment cannot carry a model-key binding.")
         values = super().orm_variables(model_key_ocid=model_key_ocid)
         return {key: json.dumps(value) if type(value) is int else value
                 for key, value in values.items()}

@@ -40,6 +40,7 @@ coverage.out
 /dist/
 /build/
 /out/
+/runtime/source.json
 /target/
 
 # Logs and runtime state.

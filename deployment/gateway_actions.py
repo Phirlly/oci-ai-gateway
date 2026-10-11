@@ -70,7 +70,9 @@ class GatewayActions:
         history = self.journal.read(target_identity(self.target.config))
         if not history and not valid_secret(external_api_key):
             raise DeliveryError('Initial Deploy requires ANTHROPIC_API_KEY before any cloud resources are created.')
-        expiry = (datetime.now(timezone.utc) + timedelta(days=self.target.config.values['model_key_ttl_days'])).strftime('%Y-%m-%dT%H:%M:%SZ')
+        expiry = None
+        if not self.target.config.is_native:
+            expiry = (datetime.now(timezone.utc) + timedelta(days=self.target.config.values['model_key_ttl_days'])).strftime('%Y-%m-%dT%H:%M:%SZ')
         budget = PollBudget(3600, progress=self.progress)
         while True:
             try:

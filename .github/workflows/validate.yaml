@@ -62,6 +62,7 @@ jobs:
           terraform_wrapper: false
       - name: Validate deployment compatibility
         run: |
+          python -m deployment.native_package
           terraform -chdir=infra fmt -check -recursive
           terraform -chdir=infra init -backend=false -input=false -lockfile=readonly
           terraform -chdir=infra validate
@@ -90,3 +91,7 @@ jobs:
         run: python -m tests.contracts.demo
       - name: Native OCI adapter and signing transport contracts
         run: python -m tests.contracts.native_oci
+      - name: Production native Compose startup
+        run: python -m tests.contracts.native_deployment
+      - name: Systemd signing activation and container restart
+        run: python -m tests.contracts.signing_systemd

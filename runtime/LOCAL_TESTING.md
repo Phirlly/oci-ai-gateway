@@ -14,6 +14,7 @@ or additional Python packages are needed.
 python3.12 -m tests.contracts.runtime
 python3.12 -m tests.contracts.demo
 python3.12 -m tests.contracts.native_oci
+python3.12 -m tests.contracts.native_deployment
 ```
 
 For a Podman machine available through the Docker `podman` context:
@@ -37,6 +38,19 @@ signing cancellation and normal log output in a network-disabled container.
 The production callback is exercised through the real proxy with synthetic
 native OCI and Anthropic responses. Native cloud activation remains pending.
 It needs no OCI credentials or local documentation cache.
+
+The native deployment suite starts the production gateway/database Compose
+services with synthetic secrets, the verified overlay and no outbound network or
+published ports. It checks startup, authentication and callback policy from
+inside the container. It does not exercise the host's systemd or OCI identity.
+
+On Ubuntu with systemd, a local Docker engine and noninteractive sudo, run
+`python3.12 -m tests.contracts.signing_systemd`. It owns uniquely named test units
+and a network-disabled container; it verifies activation and worker/container
+restart with synthetic signatures. It skips on macOS. No OCI identity is used.
+Failures retain exact recovery names/paths; stop its container before its named
+socket/service, remove only those two unit files, reload systemd, then remove the
+empty socket directory and retained test inputs. Do not restart shared Docker.
 
 ## Image Pulls
 
@@ -92,3 +106,12 @@ rm -r -- "$test_inputs"
 If any command fails or lists remaining resources, retain the inputs and retry
 with the same context and project. Do not run a global prune. Other projects
 and the container engine remain untouched.
+
+For an interrupted native deployment suite, use its retained manifest instead:
+
+```sh
+docker --context "$test_context" compose -f "$test_inputs/compose.json" \
+  -p "$test_project" down --volumes --timeout 10
+```
+
+Then perform the same three resource checks before removing its input directory.

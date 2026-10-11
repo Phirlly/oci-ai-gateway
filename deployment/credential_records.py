@@ -8,6 +8,7 @@ from datetime import datetime
 from .credential_errors import DeliveryError
 from .credential_identity import valid_identity, valid_ocid
 from .runtime_context import valid_runtime_context
+from runtime.password_policy import valid_presenter_password
 
 MAX_RECORD_BYTES = 16384
 SECRET_FIELDS = {
@@ -22,8 +23,12 @@ class CredentialRecord:
     content: bytes
     kind: str
     operation_id: str
-    expires_at: datetime
+    expires_at: datetime | None
     model_key_ocid: str | None = None
+
+    @property
+    def is_native(self):
+        return json.loads(self.content)["schema_version"] == 3
 
     @property
     def runtime_context(self):
@@ -35,7 +40,7 @@ class CredentialRecord:
         return prefix + "-" + self.operation_id
 
     def require_unexpired(self, now):
-        if now.tzinfo is None or self.expires_at <= now:
+        if now.tzinfo is None or (self.expires_at is not None and self.expires_at <= now):
             raise DeliveryError("Credential record expired; explicit recovery is required.")
 
 
@@ -79,8 +84,10 @@ def parse_record(content, identity):
             raise ValueError("Identity")
         if value.get("identity") != identity or type(value.get("schema_version")) is not int:
             raise ValueError("Identity or schema")
-        if value["schema_version"] not in (1, 2):
+        if value["schema_version"] not in (1, 2, 3):
             raise ValueError("Schema")
+        if value["schema_version"] == 3:
+            return _native_record(value)
         fields = BASE_FIELDS
         if value["schema_version"] == 2:
             if not valid_runtime_context(value.get("runtime")):
@@ -119,3 +126,20 @@ def parse_record(content, identity):
         return CredentialRecord(canonical, kind, operation, expiry_time, key_id)
     except (ValueError, TypeError, KeyError, UnicodeError, RecursionError):
         raise DeliveryError("Invalid credential record: check schema, identity, expiry and required fields.") from None
+
+
+def _native_record(value):
+    """Native identity has no generated inference key or synthetic expiry."""
+    if (set(value) != (BASE_FIELDS - {"expires_at"}) | {"runtime", "credentials"}
+            or value["kind"] != "runtime-bundle"
+            or not valid_runtime_context(value["runtime"])
+            or not isinstance(value["operation_id"], str)
+            or re.fullmatch(r"[a-f0-9]{32}", value["operation_id"]) is None):
+        raise ValueError("Native fields")
+    credentials = value["credentials"]
+    if (not isinstance(credentials, dict) or set(credentials) != SECRET_FIELDS - {"oci_api_key"}
+            or not all(valid_secret(secret) for secret in credentials.values())
+            or not valid_presenter_password(credentials["demo_password"])):
+        raise ValueError("Native credentials")
+    canonical = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    return CredentialRecord(canonical, "runtime-bundle", value["operation_id"], None)

@@ -18,7 +18,7 @@ LiteLLM, PostgreSQL and Caddy images.
 | Deploy | Provision resources, configure models and presenter, run bundled samples |
 | Status | Inspect infrastructure and health without model calls |
 | Verify samples | Check login, access, both model routes and streaming |
-| Remove | Delete owned model keys and infrastructure, without needing a working VM |
+| Remove | Remove deployment-owned resources without needing a working VM |
 
 **Ready** requires trusted HTTPS, presenter login and successful samples through
 both real model routes. Reuse the same deployment for another demonstration.

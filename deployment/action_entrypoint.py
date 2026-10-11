@@ -11,7 +11,7 @@ from runtime.gateway_http import GatewayError
 from .compute_cli import ComputeCLI
 from .credential_errors import DeliveryError
 from .deployment_config import load_config
-from .foundation_package import GatewayPackage
+from .native_package import NativePackage
 from .gateway_actions import GatewayActions
 from .gateway_config import GatewayConfig
 from .github_http import GitHubHTTP
@@ -38,12 +38,23 @@ def create_actions(config, connection, environment, action):
     connection_args = {'profile': connection.profile, 'config_file': connection.config_file}
     orm = ResourceManagerCLI(settings['region'], **connection_args)
     target = StackTarget(config, journal.controller_id)
-    package = deployment_package(orm, journal, target, lambda: GatewayPackage.build(ROOT))
+    def build():
+        if not config.is_native:
+            raise DeliveryError('Fresh deployments require version3 settings and a new deployment ID; preserve original version2 settings for recovery.')
+        candidate = NativePackage.build(ROOT, repository=environment['GITHUB_REPOSITORY'],
+                                        commit=environment['GITHUB_SHA'])
+        if action == 'Deploy':
+            candidate.verify_public_source()
+        return candidate
+
+    package = deployment_package(orm, journal, target, build)
     if not package.is_gateway:
         raise DeliveryError('This workflow needs a fresh full-gateway deployment identity; preserve older foundation recovery records.')
+    if package.schema_version != settings['schema_version']:
+        raise DeliveryError('Settings and original deployment package schema differ; use the original configuration for recovery.')
     compute = ComputeCLI(settings['region'], **connection_args)
-    vault = VaultCLI(settings['region'], **connection_args) if action in ('Deploy', 'Remove') else None
-    keys = ModelKeysCLI(settings['inference_region'], **connection_args) if action in ('Deploy', 'Remove') else None
+    vault = VaultCLI(settings['region'], **connection_args) if action == 'Deploy' or (action == 'Remove' and not config.is_native) else None
+    keys = ModelKeysCLI(settings['inference_region'], **connection_args) if action in ('Deploy', 'Remove') and not config.is_native else None
     return GatewayActions(orm, journal, target, package, compute, vault=vault, keys=keys,
                           progress=lambda phase: print(phase, flush=True))
 
@@ -58,7 +69,7 @@ def _settings(options, environment):
         content = environment.get('DEPLOYMENT_CONFIG', '')
     config = load_config(content)
     if not isinstance(config, GatewayConfig):
-        raise DeliveryError('The four-action workflow requires the complete schema_version2 settings example.')
+        raise DeliveryError('The four-action workflow requires the complete versioned gateway settings example.')
     return config
 
 

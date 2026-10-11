@@ -29,6 +29,14 @@ def runtime_files(bundle):
         "general_settings": {"master_key": "os.environ/LITELLM_MASTER_KEY",
                              "background_health_checks": False, "disable_env_credential_login": True},
     }
+    if settings.get("schema_version") == 3:
+        routes[0]["litellm_params"] = {
+            "model": "oci/" + settings["model_id"], "oci_region": settings["inference_region"],
+            "oci_compartment_id": settings["compartment_ocid"],
+            "additional_drop_params": ["stream_options"], "max_tokens": 256, "num_retries": 0,
+        }
+        config["litellm_settings"] = {"callbacks": ["runtime.oci_gateway_loader.INSTANCE"],
+                                      "drop_params": False, "num_retries": 0}
     credentials = {key: value for key, value in bundle.credentials.items() if key != "demo_password"}
     address = bundle.public_ip
     caddy = (
@@ -45,13 +53,20 @@ def runtime_files(bundle):
 
 def write_runtime_files(directory, bundle):
     """Only a serialized bootstrap may call this; never rotate an existing file."""
+    write_private_files(directory, runtime_files(bundle))
+
+
+def write_private_files(directory, files):
+    """Publish fixed private file names; preserve exact bytes and existing inodes."""
     directory = Path(directory)
     temporary = None
     try:
         metadata = directory.lstat()
         if not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != os.geteuid() or metadata.st_mode & 0o077:
             raise ValueError
-        for name, content in runtime_files(bundle).items():
+        if any(Path(name).name != name or name in (".", "..") for name in files):
+            raise ValueError
+        for name, content in files.items():
             expected = content.encode()
             path = directory / name
             try:

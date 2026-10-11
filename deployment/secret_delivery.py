@@ -81,7 +81,10 @@ class SecretDelivery:
                 if version.record.content != record.content:
                     raise DeliveryError("Named pending content conflicts with this request.")
                 return _receipt(version)
-        if record.kind == "runtime-bundle":
+        if record.is_native:
+            if pending:
+                raise DeliveryError("Native credentials cannot replace another staged operation.")
+        elif record.kind == "runtime-bundle":
             intents = [version for version in pending if version.record.kind == "creation-intent"]
             if (not intents or intents[0].record.expires_at != record.expires_at
                     or intents[0].record.runtime_context != record.runtime_context):

@@ -9,6 +9,10 @@ import tempfile
 from pathlib import Path
 
 SPECIAL = {
+    "runtime/systemd/oci-ai-gateway-native-bootstrap.service": "etc/systemd/system/oci-ai-gateway-bootstrap.service",
+    "runtime/systemd/docker-native.conf": "etc/systemd/system/docker.service.d/10-gateway-guard.conf",
+    "runtime/systemd/oci-ai-gateway-signing.service": "etc/systemd/system/oci-ai-gateway-signing.service",
+    "runtime/systemd/oci-ai-gateway-signing.socket": "etc/systemd/system/oci-ai-gateway-signing.socket",
     "runtime/systemd/oci-ai-gateway-bootstrap.service": "etc/systemd/system/oci-ai-gateway-bootstrap.service",
     "runtime/systemd/oci-ai-gateway-bootstrap.timer": "etc/systemd/system/oci-ai-gateway-bootstrap.timer",
     "runtime/systemd/docker-guard.conf": "etc/systemd/system/docker.service.d/10-gateway-guard.conf",
@@ -16,22 +20,29 @@ SPECIAL = {
 }
 
 
+def asset_destination(name):
+    if name in SPECIAL:
+        return SPECIAL[name]
+    if re.fullmatch(r"runtime/[a-z_]+\.py", name) or name in {
+            "runtime/compose.cloud.yaml", "runtime/compose.native.yaml",
+            "runtime/litellm_oci.patch", "runtime/LITELLM_LICENSE"}:
+        return "opt/oci-ai-gateway/" + name
+    raise ValueError("Unrecognized asset path")
+
+
 def install_assets(content, root=Path("/")):
     if not isinstance(content, bytes) or len(content) > 256 * 1024:
         raise ValueError("Invalid asset payload")
     values = json.loads(content)
-    if not isinstance(values, dict) or not 1 <= len(values) <= 32:
+    if not isinstance(values, dict) or not 1 <= len(values) <= 48:
         raise ValueError("Invalid asset manifest")
     destinations = {}
     for name, body in values.items():
         if not isinstance(body, str) or len(body.encode()) > 65536:
             raise ValueError("Invalid asset content")
-        if name in SPECIAL:
-            destination = SPECIAL[name]
-        elif re.fullmatch(r"runtime/[a-z_]+\.py", name) or name == "runtime/compose.cloud.yaml":
-            destination = "opt/oci-ai-gateway/" + name
-        else:
-            raise ValueError("Unrecognized asset path")
+        destination = asset_destination(name)
+        if destination in destinations:
+            raise ValueError("Conflicting asset destinations")
         destinations[destination] = body.encode()
     for relative, data in destinations.items():
         path = root / relative
@@ -73,7 +84,8 @@ def install_assets(content, root=Path("/")):
 
 if __name__ == "__main__":
     try:
-        install_assets(Path("/opt/oci-ai-gateway/assets.json").read_bytes())
+        with Path("/opt/oci-ai-gateway/assets.json").open("rb") as stream:
+            install_assets(stream.read(256 * 1024 + 1))
     except (OSError, ValueError, TypeError, RecursionError):
         print("Embedded runtime assets could not be installed safely", file=sys.stderr)
         sys.exit(1)

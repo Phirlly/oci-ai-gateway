@@ -32,6 +32,10 @@ variables {
 run "placeholder_uses_owned_vault_and_encryption_key" {
   command = plan
   assert {
+    condition     = length(terraform_data.vault_endpoint) == 0
+    error_message = "Legacy archives must not require a readiness script."
+  }
+  assert {
     condition = (
       oci_kms_vault.runtime.vault_type == "DEFAULT" &&
       oci_kms_vault.runtime.compartment_id == var.compartment_ocid &&
@@ -71,5 +75,21 @@ run "placeholder_uses_owned_vault_and_encryption_key" {
       output.runtime_secret_ocid == oci_vault_secret.runtime.id
     )
     error_message = "Handoff outputs must reference this stack's exact vault/key/secret."
+  }
+}
+
+run "console_waits_for_its_own_vault" {
+  command = plan
+  variables {
+    vault_readiness_script_path = "./vault_readiness.py"
+  }
+  assert {
+    condition = (
+      length(terraform_data.vault_endpoint) == 1 &&
+      terraform_data.vault_endpoint[0].triggers_replace == oci_kms_vault.runtime.id &&
+      terraform_data.vault_endpoint[0].input.endpoint == oci_kms_vault.runtime.management_endpoint &&
+      terraform_data.vault_endpoint[0].input.region == var.region
+    )
+    error_message = "Gate identity and endpoint must come from this deployment's Vault."
   }
 }

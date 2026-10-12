@@ -2,24 +2,25 @@
 module "gateway" {
   source = "../infra"
 
-  tenancy_ocid               = var.tenancy_ocid
-  compartment_ocid           = var.compartment_ocid
-  region                     = var.region
-  deployment_id              = var.deployment_id
-  schema_version             = 4
-  models                     = local.models
-  inference_region           = var.enable_oci ? coalesce(var.inference_region, var.region) : null
-  presenter_email            = var.presenter_email
-  instance_shape             = var.instance_shape
-  instance_ocpus             = var.instance_ocpus
-  instance_memory_gbs        = var.instance_memory_gbs
-  boot_volume_size_gbs       = 80
-  availability_domain_number = 1
-  image_name                 = data.oci_core_image.selected.display_name
-  console_image_ocid         = var.image_ocid
-  console_ad_name            = var.availability_domain
-  console_cloud_init         = local.cloud_init
-  console_mode               = true
+  tenancy_ocid                = var.tenancy_ocid
+  compartment_ocid            = var.compartment_ocid
+  region                      = var.region
+  deployment_id               = var.deployment_id
+  schema_version              = 4
+  models                      = local.models
+  inference_region            = var.enable_oci ? coalesce(var.inference_region, var.region) : null
+  presenter_email             = var.presenter_email
+  instance_shape              = var.instance_shape
+  instance_ocpus              = var.instance_ocpus
+  instance_memory_gbs         = var.instance_memory_gbs
+  boot_volume_size_gbs        = 80
+  availability_domain_number  = 1
+  image_name                  = data.oci_core_image.selected.display_name
+  console_image_ocid          = var.image_ocid
+  console_ad_name             = var.availability_domain
+  console_cloud_init          = local.cloud_init
+  console_mode                = true
+  vault_readiness_script_path = "${path.module}/vault_readiness.py"
 }
 
 data "oci_core_image" "selected" {

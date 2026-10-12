@@ -18,7 +18,7 @@ from .optional_package import OPTIONAL_EXCLUSIONS
 from .package_sources import package_sources
 
 ROOT_FILES = ("main.tf", "providers.tf", "variables.tf", "secrets.tf", "provider-secrets.tf",
-              "bootstrap.tf", "outputs.tf", "schema.yaml")
+              "bootstrap.tf", "outputs.tf", "schema.yaml", "vault_readiness.py")
 CONSOLE_FILES = (
     "console_bootstrap.py", "console_runner.py", "console_settings.py", "console_secrets.py",
     "console_state.py", "console_credentials.py", "console_status.py", "console_services.py",

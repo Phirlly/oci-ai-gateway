@@ -25,6 +25,13 @@ class ConsoleDependencyContracts(unittest.TestCase):
             self.assertEqual(result.returncode, 0, "Fixture initialization failed")
             self.assertEqual(self.terraform(extracted, "validate", "-no-color").returncode, 0,
                              "The unmodified composed graph must validate first")
+            graph = self.terraform(extracted, "graph", "-type=plan")
+            self.assertEqual(graph.returncode, 0, graph.stderr)
+            for dependent, prerequisite in (("oci_kms_key.runtime", "terraform_data.vault_endpoint"),
+                                             ("terraform_data.vault_endpoint", "oci_kms_vault.runtime")):
+                edge = ('"[root] module.gateway.' + dependent + ' (expand)" -> '
+                        '"[root] module.gateway.' + prerequisite + ' (expand)"')
+                self.assertIn(edge, graph.stdout)
 
             # Mutation is restricted to this disposable extracted package.
             main = extracted / "main.tf"

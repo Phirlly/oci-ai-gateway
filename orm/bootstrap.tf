@@ -13,15 +13,13 @@ locals {
         path        = "/opt/oci-ai-gateway/assets.json"
         owner       = "root:root"
         permissions = "0600"
-        encoding    = "gz+b64"
-        content     = base64gzip(jsonencode({ for name in local.embedded_assets : name => file("${local.asset_root}/${name}") }))
+        content     = jsonencode({ for name in local.embedded_assets : name => file("${local.asset_root}/${name}") })
       },
       {
         path        = "/opt/oci-ai-gateway/install_assets.py"
         owner       = "root:root"
         permissions = "0600"
-        encoding    = "gz+b64"
-        content     = base64gzip(file("${local.asset_root}/runtime/install_assets.py"))
+        content     = file("${local.asset_root}/runtime/install_assets.py")
       },
       {
         path        = "/etc/oci-ai-gateway.json"

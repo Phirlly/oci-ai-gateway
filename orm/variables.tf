@@ -43,13 +43,13 @@ variable "enable_anthropic" {
   type        = bool
   default     = false
   nullable    = false
-  description = "Optional Anthropic route; requires your Anthropic API key after Apply."
+  description = "Optional Anthropic route; select a saved secret or supply its API key after Apply."
 }
 variable "enable_openai" {
   type        = bool
   default     = false
   nullable    = false
-  description = "Optional OpenAI route; requires your OpenAI API key after Apply."
+  description = "Optional OpenAI route; select a saved secret or supply its API key after Apply."
 }
 variable "anthropic_model_id" {
   type        = string

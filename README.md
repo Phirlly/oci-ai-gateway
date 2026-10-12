@@ -10,8 +10,9 @@ the deploy button will be published after Console and live-model acceptance.
 ## Deploy and demonstrate
 
 The primary deployment path is [OCI Resource Manager](RESOURCE_MANAGER.md):
-select providers, Apply, save keys only for enabled external providers, and open
-deployment status. OCI is enabled by default; Anthropic and OpenAI are optional.
+select providers and saved Vault secrets, Apply, and open deployment status.
+Saved keys are reused automatically; without them, enter keys after Apply.
+OCI is enabled by default; Anthropic and OpenAI are optional.
 Setup creates presenter access and runs four samples per enabled model.
 After **Ready**, open Compare and run the [demo script](demo/PROMPT.md).
 

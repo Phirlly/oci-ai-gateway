@@ -1,8 +1,8 @@
 # Resource Manager deployment
 
 **Candidate under validation.** The release ZIP and deploy button are not yet
-published. Console rendering, secret generation and fresh live deployment still
-require acceptance. GitHub Actions remains available through [setup](SETUP.md).
+published. The saved-secret journey and complete fresh deployment still require
+live acceptance. GitHub Actions remains available through [setup](SETUP.md).
 
 ## Prerequisites
 
@@ -12,6 +12,10 @@ require acceptance. GitHub Actions remains available through [setup](SETUP.md).
 - Capacity for an E4/E5 Flex AMD VM and a regional Canonical Ubuntu24.04 image.
 - Access to each selected model. OCI inference needs a subscribed inference
   region; Anthropic/OpenAI need their own API keys only when enabled.
+- For reusable external keys, save each key once as a **CURRENT plain-text**
+  secret in an independently managed Vault, in the deployment compartment and
+  hosting region. The deployer needs permission to list/read secret metadata.
+  Never put keys in secret names, descriptions, tags or Terraform variables.
 
 | Optional provider | Example model | Credential |
 |---|---|---|
@@ -31,11 +35,13 @@ Budget for resources and model calls.
    GitHub source ZIP is not the prepared package.
 2. Select the compartment, unique deployment name, availability domain and
    Ubuntu24.04 AMD image. Enable the providers you want and review their model
-   IDs, inference region if using OCI, and presenter username. **Apply**.
-3. For each enabled external provider, open **Save Anthropic key** or **Save
-   OpenAI key** in outputs. Save that provider's key as a **CURRENT** plain-text
-   secret version. Skip this step for OCI-only. The stack creates the Vault and
-   secret containers; never put keys/passwords in stack variables.
+   IDs, inference region if using OCI, and presenter username. Select **Saved
+   Anthropic key** and/or **Saved OpenAI key** for enabled external providers.
+   Choose a different secret for each provider. **Apply**.
+3. Saved keys need no further entry. If you left a selector blank, open that
+   provider's **key secret** output and save its key as a **CURRENT plain-text**
+   version. The stack creates these fallback secrets and their Vault. OCI-only
+   needs no external keys. Terraform receives only secret IDs, never key contents.
 4. Open **Check last verification**. Installation/TLS may take several minutes.
    Missing credentials show `WAITING_CREDENTIALS`. **READY** requires trusted
    HTTPS, presenter login/access and all samples: four per enabled model.
@@ -60,7 +66,9 @@ Source installation verifies hashes from the package's exact public Git commit.
   If you change the presenter password in the UI, update the presenter secret's
   `password` field to the current value for subsequent verification.
 - Keep deployment identity, models, region, image and presenter identity unchanged.
-  Provider selection is also fixed for a deployment. Use a new deployment for
+  Provider and saved-secret selections are also fixed for a deployment; update
+  key contents in the same secret rather than selecting a different secret.
+  A shared-key change may affect other deployments using it. Use a new deployment for
   those changes or after20 verification runs. Remove
   the old deployment if it is no longer needed.
 - `WAITING_FRONTEND` waits for public HTTPS/login. `ERROR` before verification
@@ -73,6 +81,12 @@ Run **Destroy** in Resource Manager. It removes deployment-owned resources even
 when the VM is unavailable. Vaults/secrets may remain scheduled for deletion.
 Confirm Destroy succeeded before deleting the stack. The supplied compartment,
 OCI identity and external provider accounts/keys are preserved.
+
+Selected saved secrets and their Vaults are preserved by this stack. Use shared
+secrets independent of disposable deployments: deleting their original owning
+stack would still remove them. Keep selected secrets and metadata-read permission
+available until dependent stacks are removed; failed metadata reads can block
+Terraform's pre-Destroy refresh.
 
 This single-VM demo has no high availability, automated credential rotation or
 production backup/restore.

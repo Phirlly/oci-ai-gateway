@@ -3,12 +3,12 @@ description: Use optional OCI Generative AI, Anthropic and OpenAI models through
 schemaVersion: 1.1.0
 version: "1.0"
 locale: en
-instructions: Enable at least one provider and Apply. Save keys only for enabled external providers using the output links. Open Deployment status, then use the generated presenter password. Apply success does not mean Ready.
+instructions: Enable at least one provider. Select saved secrets for external providers to reuse keys automatically. If left blank, save keys using the output links after Apply. Check deployment status, then use the generated presenter password. Apply success does not mean Ready.
 variableGroups:
   - title: Deployment
     variables: ["${compartment_ocid}", "${deployment_id}", "${availability_domain}", "${image_ocid}", "${presenter_email}"]
   - title: Optional model providers
-    variables: ["${enable_oci}", "${oci_model_id}", "${inference_region}", "${enable_anthropic}", "${anthropic_model_id}", "${enable_openai}", "${openai_model_id}"]
+    variables: ["${enable_oci}", "${oci_model_id}", "${inference_region}", "${enable_anthropic}", "${anthropic_model_id}", "${anthropic_secret_ocid}", "${enable_openai}", "${openai_model_id}", "${openai_secret_ocid}"]
   - title: Capacity
     variables: ["${instance_shape}", "${instance_ocpus}", "${instance_memory_gbs}"]
   - title: Verification
@@ -57,6 +57,20 @@ variables:
     visible: ${enable_oci}
   anthropic_model_id: {type: string, title: Anthropic model, required: true, visible: "${enable_anthropic}"}
   openai_model_id: {type: string, title: OpenAI model, required: true, visible: "${enable_openai}"}
+  anthropic_secret_ocid:
+    type: oci:kms:secret:id
+    title: Saved Anthropic key (optional)
+    description: Select a shared Vault secret in this compartment and hosting region. It remains independently owned. Leave blank to create a secret and enter the key after Apply. Keep this selection unchanged on later Applies.
+    required: false
+    visible: ${enable_anthropic}
+    dependsOn: {compartmentId: "${compartment_ocid}"}
+  openai_secret_ocid:
+    type: oci:kms:secret:id
+    title: Saved OpenAI key (optional)
+    description: Select a shared Vault secret in this compartment and hosting region. It remains independently owned. Leave blank to create a secret and enter the key after Apply. Keep this selection unchanged on later Applies.
+    required: false
+    visible: ${enable_openai}
+    dependsOn: {compartmentId: "${compartment_ocid}"}
   instance_shape:
     type: enum
     title: VM shape
@@ -72,8 +86,8 @@ variables:
     maximum: 20
     required: true
 outputs:
-  anthropic_key_secret_url: {type: link, title: Optional Anthropic credentials, displayText: Save Anthropic key}
-  openai_key_secret_url: {type: link, title: Optional OpenAI credentials, displayText: Save OpenAI key}
+  anthropic_key_secret_url: {type: link, title: Optional Anthropic credentials, displayText: Anthropic key secret}
+  openai_key_secret_url: {type: link, title: Optional OpenAI credentials, displayText: OpenAI key secret}
   presenter_password_secret_url: {type: link, title: Presenter credentials, displayText: View presenter password}
   status_url: {type: link, title: Deployment status, displayText: Check last verification}
   compare_url: {type: link, title: LiteLLM Compare, displayText: Open Compare}

@@ -56,6 +56,10 @@ Source installation verifies hashes from the package's exact public Git commit.
 
 ## Repeat or recover
 
+- Apply automatically waits up to three minutes for a new Vault's DNS/TLS
+  endpoint before creating its key. If this readiness step times out, retry
+  Apply on the same stack after checking OCI service availability. Destroy
+  does not run this check.
 - Reuse Compare without redeploying. Status reports the **last verification**,
   not continuous model health. Ordinary status polling makes no model calls.
 - To retry failed/interrupted samples or activate corrected external keys,

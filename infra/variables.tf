@@ -1,3 +1,9 @@
+variable "vault_readiness_script_path" {
+  description = "Internal Console-package readiness script, relative to the stack root. Null preserves controller archives."
+  type        = string
+  default     = null
+}
+
 variable "compartment_ocid" {
   description = "Existing OC1 compartment for this deployment; tenancy root is not supported."
   type        = string

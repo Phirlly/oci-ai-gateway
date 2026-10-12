@@ -7,7 +7,28 @@ resource "oci_kms_vault" "runtime" {
   depends_on = [data.oci_identity_region_subscriptions.tenancy]
 }
 
+# Creation-only: a new Vault can be ACTIVE before its endpoint resolves.
+# Default-null keeps existing controller archive layouts and recovery intact.
+resource "terraform_data" "vault_endpoint" {
+  count            = var.vault_readiness_script_path == null ? 0 : 1
+  triggers_replace = oci_kms_vault.runtime.id
+  input = {
+    endpoint = oci_kms_vault.runtime.management_endpoint
+    region   = var.region
+  }
+
+  provisioner "local-exec" {
+    interpreter = ["python3", "-I", "-B"]
+    command     = var.vault_readiness_script_path
+    environment = {
+      VAULT_READINESS_ENDPOINT = self.input.endpoint
+      VAULT_READINESS_REGION   = self.input.region
+    }
+  }
+}
+
 resource "oci_kms_key" "runtime" {
+  depends_on          = [terraform_data.vault_endpoint]
   compartment_id      = var.compartment_ocid
   display_name        = "${var.deployment_id}-runtime"
   management_endpoint = oci_kms_vault.runtime.management_endpoint

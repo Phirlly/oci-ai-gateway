@@ -22,6 +22,7 @@ class ConsolePackageTests(unittest.TestCase):
             names = archive.namelist()
             self.assertIn("schema.yaml", names)
             self.assertIn("provider-secrets.tf", names)
+            self.assertIn("vault_readiness.py", names)
             self.assertIn("gateway/cloud-compute.tf", names)
             self.assertIn('source = "./gateway"', archive.read("main.tf").decode())
             self.assertNotIn("../infra", archive.read("main.tf").decode())
@@ -30,6 +31,7 @@ class ConsolePackageTests(unittest.TestCase):
             self.assertIn("demo/support-requests.json", manifest["files"])
             self.assertIn("runtime/console_bootstrap.py", manifest["files"])
             self.assertNotIn("runtime/systemd/oci-ai-gateway-native-bootstrap.service", manifest["files"])
+            self.assertNotIn("vault_readiness.py", manifest["files"])
             for name, expected in manifest["files"].items():
                 self.assertEqual(sha256(archive.read(name)).hexdigest(), expected)
             assets = {name: archive.read(name).decode() for name in manifest["files"]}

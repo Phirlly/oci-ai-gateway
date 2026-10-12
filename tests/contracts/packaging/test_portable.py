@@ -32,6 +32,12 @@ class PortablePackageContracts(unittest.TestCase):
                     compile(path.read_text(), path.name, "exec")
             self.assertFalse((extracted / "docs").exists())
             self.assertTrue((extracted / "schema.yaml").is_file())
+            script = extracted / "vault_readiness.py"
+            compile(script.read_text(), script.name, "exec")
+            result = subprocess.run([sys.executable, "-I", "-B", str(script)],
+                                    cwd=extracted, env={}, capture_output=True, text=True, timeout=5)
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("invalid endpoint", result.stderr)
             self.runtime_imports(extracted)
 
     def runtime_imports(self, extracted):

@@ -1,21 +1,3 @@
-resource "oci_vault_secret" "provider" {
-  for_each       = { for provider, model in local.models : provider => model if provider != "oci" }
-  compartment_id = var.compartment_ocid
-  vault_id       = module.gateway.runtime_vault_ocid
-  key_id         = module.gateway.runtime_key_ocid
-  secret_name    = "${var.deployment_id}-${each.key}"
-  freeform_tags  = local.tags
-  secret_content {
-    content_type = "BASE64"
-    name         = "unconfigured"
-    stage        = "CURRENT"
-    content      = base64encode("UNCONFIGURED")
-  }
-  lifecycle {
-    ignore_changes = [secret_content]
-  }
-}
-
 resource "oci_vault_secret" "presenter" {
   compartment_id         = var.compartment_ocid
   vault_id               = module.gateway.runtime_vault_ocid
@@ -56,12 +38,12 @@ resource "oci_identity_policy" "console_secrets" {
   provider       = oci.home
   compartment_id = var.compartment_ocid
   name           = "${var.deployment_id}-console-read"
-  description    = "Only this instance may read its presenter and nonsecret Console context."
+  description    = "Only this instance may read the selected provider secrets, presenter and Console context."
   freeform_tags  = local.tags
   statements = concat([
     "Allow any-user to read secret-bundles in compartment id ${var.compartment_ocid} where all {request.principal.type='instance', request.instance.id='${module.gateway.instance_ocid}', target.secret.id='${oci_vault_secret.presenter.id}', request.operation='GetSecretBundle'}",
     "Allow any-user to read secret-bundles in compartment id ${var.compartment_ocid} where all {request.principal.type='instance', request.instance.id='${module.gateway.instance_ocid}', target.secret.id='${oci_vault_secret.context.id}', request.operation='GetSecretBundleByName'}",
-    ], [for secret in oci_vault_secret.provider :
-    "Allow any-user to read secret-bundles in compartment id ${var.compartment_ocid} where all {request.principal.type='instance', request.instance.id='${module.gateway.instance_ocid}', target.secret.id='${secret.id}', request.operation='GetSecretBundle'}"
+    ], [for secret_id in local.provider_secret_ids :
+    "Allow any-user to read secret-bundles in compartment id ${var.compartment_ocid} where all {request.principal.type='instance', request.instance.id='${module.gateway.instance_ocid}', target.secret.id='${secret_id}', request.operation='GetSecretBundle'}"
   ])
 }

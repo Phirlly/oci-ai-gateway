@@ -21,6 +21,7 @@ class ConsolePackageTests(unittest.TestCase):
         with zipfile.ZipFile(io.BytesIO(package.content)) as archive:
             names = archive.namelist()
             self.assertIn("schema.yaml", names)
+            self.assertIn("provider-secrets.tf", names)
             self.assertIn("gateway/cloud-compute.tf", names)
             self.assertIn('source = "./gateway"', archive.read("main.tf").decode())
             self.assertNotIn("../infra", archive.read("main.tf").decode())

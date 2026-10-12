@@ -52,7 +52,7 @@ locals {
   console_settings = {
     schema_version        = 2
     runtime               = local.runtime_settings
-    provider_secrets      = { for provider, secret in oci_vault_secret.provider : provider => secret.id }
+    provider_secrets      = local.provider_secret_ids
     vault_ocid            = module.gateway.runtime_vault_ocid
     presenter_secret_ocid = oci_vault_secret.presenter.id
     context_name          = "${var.deployment_id}-context"
